@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
+
+
 let supabase: any = null;
 
 try {
@@ -131,7 +133,7 @@ export default function LoginPage() {
                             onClick={() => setShowPassword(!showPassword)}
                             className="absolute right-2 top-2 text-sm text-gray-600"
                         >
-                            {showPassword ? "🙈" : "👁️"}
+                            {showPassword ? "🙈" : "👁"}
                         </button>
                     </div>
 
