@@ -2,45 +2,16 @@
 
     import { useState } from "react";
     import { useRouter } from "next/navigation";
+    import { createClient } from "@supabase/supabase-js";
 
-    interface UserData {
-    username: string;
-    password: string;
-    nama: string;
-    asal: string;
-    status: string;
-    keterangan: string;
-    }
+    // Inisialisasi Supabase client
+    const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
 
     export default function LoginPage() {
     const router = useRouter();
-
-    const [users, setUsers] = useState<UserData[]>([
-        {
-        username: "admin",
-        password: "admin123",
-        nama: "Administrator",
-        asal: "BP Kulon",
-        status: "Pekerja",
-        keterangan: "Panitia",
-        },
-        {
-        username: "walimumi",
-        password: "walimumi",
-        nama: "wali murid MUMI",
-        asal: "BP Kulon",
-        status: "Pribumi",
-        keterangan: "wali murid MUMI",
-        },
-        {
-        username: "fajar",
-        password: "abcde",
-        nama: "Fajar Hidayat",
-        asal: "BP Selatan",
-        status: "Kuliah",
-        keterangan: "UGM",
-        },
-    ]);
 
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
@@ -52,59 +23,68 @@
     const [keterangan, setKeterangan] = useState("");
     const [showPassword, setShowPassword] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const uname = username.trim().toLowerCase();
 
-        if (
-        !uname ||
-        !password ||
-        (isRegister && (!namaLengkap || !asal || !status || !keterangan))
-        ) {
+        if (!uname || !password || (isRegister && (!namaLengkap || !asal || !status || !keterangan))) {
         setError("❌ Harap isi semua kolom.");
         return;
         }
 
         if (isRegister) {
-        const exists = users.find((u) => u.username === uname);
-        if (exists) {
+        // Cek apakah username sudah ada
+        const { data: existingUser } = await supabase
+            .from("users")
+            .select("username")
+            .eq("username", uname)
+            .single();
+
+        if (existingUser) {
             setError("❌ Username sudah terdaftar.");
             return;
         }
 
-        const newUser: UserData = {
+        const { error: insertError } = await supabase.from("users").insert([
+            {
             username: uname,
             password,
-            nama: namaLengkap.trim(),
-            asal: asal.trim(),
+            nama: namaLengkap,
+            asal,
             status,
-            keterangan: keterangan.trim(),
-        };
+            keterangan,
+            },
+        ]);
 
-        setUsers([...users, newUser]);
+        if (insertError) {
+            setError("❌ Gagal mendaftar. Silakan coba lagi.");
+            return;
+        }
+
         localStorage.setItem("loggedUser", uname);
-        localStorage.setItem("namaLengkap", newUser.nama);
-        localStorage.setItem("asal", newUser.asal);
-        localStorage.setItem("status", newUser.status);
-        localStorage.setItem("keterangan", newUser.keterangan);
-
+        localStorage.setItem("namaLengkap", namaLengkap);
+        localStorage.setItem("asal", asal);
+        localStorage.setItem("status", status);
+        localStorage.setItem("keterangan", keterangan);
         router.push("/dashboard");
         } else {
-        const found = users.find(
-            (u) => u.username === uname && u.password === password
-        );
+        const { data: foundUser } = await supabase
+            .from("users")
+            .select("*")
+            .eq("username", uname)
+            .eq("password", password)
+            .single();
 
-        if (!found) {
+        if (!foundUser) {
             setError("❌ Username atau password salah.");
             return;
         }
 
-        localStorage.setItem("loggedUser", found.username);
-        localStorage.setItem("namaLengkap", found.nama);
-        localStorage.setItem("asal", found.asal);
-        localStorage.setItem("status", found.status);
-        localStorage.setItem("keterangan", found.keterangan);
-
+        localStorage.setItem("loggedUser", foundUser.username);
+        localStorage.setItem("namaLengkap", foundUser.nama);
+        localStorage.setItem("asal", foundUser.asal);
+        localStorage.setItem("status", foundUser.status);
+        localStorage.setItem("keterangan", foundUser.keterangan);
         router.push("/dashboard");
         }
     };
@@ -187,35 +167,19 @@
                     <option value="Pekerja">Pekerja</option>
                 </select>
 
-                {status === "Pribumi" && (
-                    <input
+                <input
                     type="text"
-                    placeholder="Keterangan (contoh: sekolah / kuliah / kerja)"
+                    placeholder={
+                    status === "Kuliah"
+                        ? "Kuliah di mana?"
+                        : status === "Pekerja"
+                        ? "Kerja di mana?"
+                        : "Keterangan (contoh: sekolah / kuliah / kerja)"
+                    }
                     value={keterangan}
                     onChange={(e) => setKeterangan(e.target.value)}
                     className="w-full p-2 border rounded-md text-gray-900"
-                    />
-                )}
-
-                {status === "Kuliah" && (
-                    <input
-                    type="text"
-                    placeholder="Kuliah di mana?"
-                    value={keterangan}
-                    onChange={(e) => setKeterangan(e.target.value)}
-                    className="w-full p-2 border rounded-md text-gray-900"
-                    />
-                )}
-
-                {status === "Pekerja" && (
-                    <input
-                    type="text"
-                    placeholder="Kerja di mana?"
-                    value={keterangan}
-                    onChange={(e) => setKeterangan(e.target.value)}
-                    className="w-full p-2 border rounded-md text-gray-900"
-                    />
-                )}
+                />
                 </>
             )}
 
