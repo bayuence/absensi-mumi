@@ -1,222 +1,396 @@
     "use client";
 
     import { useEffect, useState } from "react";
-    import { useRouter } from "next/navigation";
+    import { createClient } from "@supabase/supabase-js";
+    import moment from "moment";
+    import "moment/locale/id";
     import Navbar from "@/components/Navbar";
 
-    interface JadwalItem {
-    tanggal: string;
-    hari: string;
-    guru: string[];
-    kode: string;
+    const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    function generateKode(length = 6) {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
     }
 
     export default function AdminPage() {
-    const router = useRouter();
-    const [selectedDate, setSelectedDate] = useState<string>("");
+    const [tanggal, setTanggal] = useState("");
     const [guruList, setGuruList] = useState<string[]>([""]);
-    const [kode, setKode] = useState("");
-    const [jadwal, setJadwal] = useState<JadwalItem[]>([]);
-    const [anggota, setAnggota] = useState<any[]>([]);
-    const [kehadiran, setKehadiran] = useState<any[]>([]);
-    const [bulanDipilih, setBulanDipilih] = useState<number>(new Date().getMonth());
-    const [tahunDipilih, setTahunDipilih] = useState<number>(new Date().getFullYear());
+    const [kodeAbsensi, setKodeAbsensi] = useState("");
+    const [jadwal, setJadwal] = useState<any[]>([]);
+    const [users, setUsers] = useState<any[]>([]);
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [loadingDelete, setLoadingDelete] = useState(false);
+
+    const fetchJadwal = async () => {
+        const { data } = await supabase
+        .from("jadwal_guru")
+        .select("*")
+        .order("tanggal", { ascending: true });
+        setJadwal(data || []);
+    };
+
+    const fetchUsers = async () => {
+        const { data } = await supabase.from("users").select("*");
+        setUsers(data || []);
+    };
 
     useEffect(() => {
-        const user = localStorage.getItem("loggedUser");
-        if (user !== "admin") router.push("/dashboard");
+        fetchJadwal();
+        fetchUsers();
+    }, []);
 
-        const saved = localStorage.getItem("jadwal_guru");
-        if (saved) setJadwal(JSON.parse(saved));
+    const handleSubmit = async (e: any) => {
+        e.preventDefault();
+        setError("");
+        setLoading(true);
 
-        const userList = JSON.parse(localStorage.getItem("users") || "[]");
-        setAnggota(userList);
-        const kehadiranList = JSON.parse(localStorage.getItem("kehadiran") || "[]");
-        setKehadiran(kehadiranList);
-    }, [router]);
+        if (!tanggal || guruList.some((g) => g.trim() === "")) {
+        setError("Semua field wajib diisi.");
+        setLoading(false);
+        return;
+        }
 
-    const handleAddGuru = () => {
-        setGuruList([...guruList, ""]);
-    };
+        const kode = kodeAbsensi || generateKode();
 
-    const handleChangeGuru = (index: number, value: string) => {
-        const updated = [...guruList];
-        updated[index] = value;
-        setGuruList(updated);
-    };
+        const entries = guruList.map((guru) => ({
+        tanggal,
+        guru,
+        kode_absensi: kode,
+        }));
 
-    const handleGenerateKode = () => {
-        const newKode = Math.random().toString(36).substring(2, 8).toUpperCase();
-        setKode(newKode);
-    };
-
-    const formatTanggalLengkap = (tanggalStr: string): { tanggal: string; hari: string } => {
-        const tanggal = new Date(tanggalStr);
-        const hariList = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-        const bulanList = [
-        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-        ];
-        const hari = hariList[tanggal.getDay()];
-        const tanggalLengkap = `${tanggal.getDate().toString().padStart(2, "0")} ${bulanList[tanggal.getMonth()]} ${tanggal.getFullYear()}`;
-        return { hari, tanggal: tanggalLengkap };
-    };
-
-    const handleSubmit = () => {
-        if (!selectedDate || guruList.some((g) => g.trim() === "") || !kode) return;
-        const { hari, tanggal } = formatTanggalLengkap(selectedDate);
-        const newJadwal = [...jadwal, { hari, tanggal, guru: guruList, kode }];
-        setJadwal(newJadwal);
-        localStorage.setItem("jadwal_guru", JSON.stringify(newJadwal));
-        setSelectedDate("");
+        const { error } = await supabase.from("jadwal_guru").insert(entries);
+        if (error) {
+        setError("Gagal menyimpan jadwal.");
+        } else {
+        setTanggal("");
         setGuruList([""]);
-        setKode("");
+        setKodeAbsensi("");
+        fetchJadwal();
+        }
+        setLoading(false);
     };
 
-    const handleDelete = (index: number) => {
-        const newList = jadwal.filter((_, i) => i !== index);
-        setJadwal(newList);
-        localStorage.setItem("jadwal_guru", JSON.stringify(newList));
+    const hapusJadwal = async (tanggal: string, kode: string) => {
+        setLoadingDelete(true);
+        await supabase
+        .from("jadwal_guru")
+        .delete()
+        .eq("tanggal", tanggal)
+        .eq("kode_absensi", kode);
+        fetchJadwal();
+        setLoadingDelete(false);
     };
 
-    const hapusAkun = (username: string) => {
-        const filtered = anggota.filter((a: any) => a.username !== username);
-        localStorage.setItem("users", JSON.stringify(filtered));
-        setAnggota(filtered);
+    const hapusUser = async (username: string) => {
+        setLoadingDelete(true);
+        await supabase.from("users").delete().eq("username", username);
+        fetchUsers();
+        setLoadingDelete(false);
     };
 
-    const exportExcel = () => {
-        const data = kehadiran.filter((k) => {
-        const date = new Date(k.tanggal);
-        return date.getMonth() === bulanDipilih && date.getFullYear() === tahunDipilih;
-        });
-        let csv = "Nama,Tanggal\n" + data.map((d) => `${d.nama},${d.tanggal}`).join("\n");
-        const blob = new Blob([csv], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `kehadiran_${bulanDipilih + 1}_${tahunDipilih}.csv`;
-        a.click();
+    const handleRemoveGuru = (index: number) => {
+        if (guruList.length > 1) {
+        const newGuruList = guruList.filter((_, i) => i !== index);
+        setGuruList(newGuruList);
+        }
     };
 
     return (
         <>
         <Navbar />
-        <main className="min-h-screen bg-white p-6 space-y-8 text-gray-800">
-            <section className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
-            <h2 className="text-xl font-semibold mb-4">🗓️ Jadwal Guru & Kode Absensi</h2>
-            <div className="space-y-6">
-                <div>
-                <label className="font-semibold text-gray-800">📆 Pilih Tanggal</label>
-                <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full mt-1 p-3 border border-gray-300 rounded-md bg-white text-gray-900"
-                />
-                </div>
-                <div>
-                <label className="font-semibold text-gray-800">👨‍🏫 Nama Guru</label>
-                {guruList.map((guru, idx) => (
-                    <input
-                    key={idx}
-                    type="text"
-                    placeholder={`Guru ${idx + 1}`}
-                    value={guru}
-                    onChange={(e) => handleChangeGuru(idx, e.target.value)}
-                    className="w-full mt-1 mb-2 p-3 border border-gray-300 rounded-md bg-white text-gray-900"
-                    />
-                ))}
-                <button onClick={handleAddGuru} className="text-sm text-blue-700 hover:underline">+ Tambah Guru</button>
-                </div>
-                <div>
-                <label className="font-semibold text-gray-800">🔐 Kode Absensi</label>
-                <div className="flex gap-4 mt-1">
-                    <input
-                    type="text"
-                    value={kode}
-                    onChange={(e) => setKode(e.target.value)}
-                    className="flex-1 p-3 border border-gray-300 rounded-md bg-white text-gray-900"
-                    />
-                    <button
-                    onClick={handleGenerateKode}
-                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                    >
-                    Generate
-                    </button>
-                </div>
-                </div>
-                <button
-                onClick={handleSubmit}
-                className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700"
-                >
-                📝 Jadwalkan
-                </button>
+        <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
+            <div className="max-w-7xl mx-auto">
+            
+            {/* Header */}
+            <div className="text-center py-8 mb-8">
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-4">
+                🛡️ Admin Dashboard
+                </h1>
+                <p className="text-slate-600 text-lg">Kelola jadwal guru dan pengguna dengan mudah</p>
             </div>
 
-            {jadwal.length > 0 && (
-                <div className="mt-10">
-                <h3 className="text-lg font-semibold text-blue-700 mb-4">📋 Jadwal Tersimpan</h3>
-                <ul className="space-y-4">
-                    {jadwal.map((j, i) => (
-                    <li key={i} className="bg-blue-50 p-4 rounded shadow flex justify-between items-start">
-                        <div>
-                        <p className="text-blue-800 font-medium">{j.hari}, {j.tanggal}</p>
-                        <p className="text-sm text-gray-600">Kode: {j.kode}</p>
-                        <p className="text-sm text-gray-700 mt-1">{j.guru.map((g) => `👤 ${g}`).join(", ")}</p>
-                        </div>
-                        <button onClick={() => handleDelete(i)} className="text-red-600 hover:text-red-800 text-sm">🗑️ Hapus</button>
-                    </li>
-                    ))}
-                </ul>
-                </div>
-            )}
-            </section>
-
-            <section className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
-            <h2 className="text-xl font-semibold mb-4">📤 Export Kehadiran ke Excel</h2>
-            <div className="flex gap-4 mb-4">
-                <input
-                type="number"
-                value={tahunDipilih}
-                onChange={(e) => setTahunDipilih(parseInt(e.target.value))}
-                placeholder="Tahun"
-                className="w-1/2 p-2 border border-gray-300 rounded text-gray-900"
-                />
-                <select
-                value={bulanDipilih}
-                onChange={(e) => setBulanDipilih(parseInt(e.target.value))}
-                className="w-1/2 p-2 border border-gray-300 rounded text-gray-900"
-                >
-                {[
-                    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-                    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-                ].map((b, i) => (
-                    <option key={i} value={i}>{b}</option>
-                ))}
-                </select>
-            </div>
-            <button onClick={exportExcel} className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
-                Export Data
-            </button>
-            </section>
-
-            <section className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
-            <h2 className="text-xl font-semibold mb-4">👥 Kelola Anggota</h2>
-            <ul className="space-y-3">
-                {anggota.map((a, i) => (
-                <li key={i} className="flex justify-between items-center border-b pb-2">
-                    <div>
-                    <p className="text-sm font-semibold text-gray-800">{a.namaLengkap} ({a.username})</p>
-                    <p className="text-xs text-gray-600">{a.status} - {a.asal}</p>
+            <div className="grid xl:grid-cols-3 gap-8">
+                
+                {/* Form Section */}
+                <div className="xl:col-span-1">
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/50 p-8 hover:shadow-2xl transition-all duration-300">
+                    <div className="flex items-center mb-6">
+                    <div className="w-12 h-12 bg-gradient-to-r from-purple-400 to-blue-500 rounded-xl flex items-center justify-center text-white text-xl font-bold mr-4">
+                        📝
                     </div>
-                    {a.username !== "admin" && (
-                    <button onClick={() => hapusAkun(a.username)} className="text-sm text-red-600 hover:underline">Hapus</button>
+                    <h2 className="text-2xl font-bold text-slate-800">Buat Jadwal</h2>
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Date Input */}
+                    <div className="space-y-2">
+                        <label className="block text-sm font-semibold text-slate-700">
+                        📅 Tanggal
+                        </label>
+                        <input
+                        type="date"
+                        value={tanggal}
+                        onChange={(e) => setTanggal(e.target.value)}
+                        className="w-full p-4 border-2 border-slate-200 rounded-xl bg-white/70 text-slate-900 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all duration-200 hover:border-slate-300"
+                        />
+                    </div>
+
+                    {/* Guru List */}
+                    <div className="space-y-4">
+                        <label className="block text-sm font-semibold text-slate-700">
+                        👨‍🏫 Daftar Guru
+                        </label>
+                        {guruList.map((guru, i) => (
+                        <div key={i} className="flex gap-3 group">
+                            <input
+                            type="text"
+                            placeholder={`Nama Guru ${i + 1}`}
+                            value={guru}
+                            onChange={(e) => {
+                                const newList = [...guruList];
+                                newList[i] = e.target.value;
+                                setGuruList(newList);
+                            }}
+                            className="flex-1 p-4 border-2 border-slate-200 rounded-xl bg-white/70 text-slate-900 placeholder-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all duration-200 hover:border-slate-300"
+                            />
+                            {guruList.length > 1 && (
+                            <button
+                                type="button"
+                                onClick={() => handleRemoveGuru(i)}
+                                className="w-12 h-12 flex items-center justify-center text-red-500 hover:text-white hover:bg-red-500 rounded-xl border-2 border-red-200 hover:border-red-500 transition-all duration-200 group-hover:scale-105"
+                            >
+                                ✕
+                            </button>
+                            )}
+                        </div>
+                        ))}
+                        
+                        <button
+                        type="button"
+                        onClick={() => setGuruList([...guruList, ""])}
+                        className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium hover:bg-blue-50 px-4 py-2 rounded-lg transition-all duration-200"
+                        >
+                        <span className="text-lg">➕</span> Tambah Guru
+                        </button>
+                    </div>
+
+                    {/* Kode Absensi */}
+                    <div className="space-y-2">
+                        <label className="block text-sm font-semibold text-slate-700">
+                        🎟️ Kode Absensi
+                        </label>
+                        <input
+                        type="text"
+                        placeholder="Kosongkan untuk otomatis"
+                        value={kodeAbsensi}
+                        onChange={(e) => setKodeAbsensi(e.target.value)}
+                        className="w-full p-4 border-2 border-slate-200 rounded-xl bg-white/70 text-slate-900 placeholder-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all duration-200 hover:border-slate-300 font-mono"
+                        />
+                        <p className="text-xs text-slate-500">Jika kosong, sistem akan generate kode otomatis</p>
+                    </div>
+
+                    {/* Submit Button */}
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white font-semibold py-4 px-6 rounded-xl hover:from-purple-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] transition-all duration-200 shadow-lg hover:shadow-xl"
+                    >
+                        {loading ? (
+                        <span className="flex items-center justify-center gap-2">
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Menyimpan...
+                        </span>
+                        ) : (
+                        <span className="flex items-center justify-center gap-2">
+                            💾 Simpan Jadwal
+                        </span>
+                        )}
+                    </button>
+
+                    {/* Error Message */}
+                    {error && (
+                        <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-lg">
+                        <div className="flex items-center">
+                            <div className="text-red-400 mr-3">⚠️</div>
+                            <div className="text-red-800 font-medium">{error}</div>
+                        </div>
+                        </div>
                     )}
-                </li>
-                ))}
-            </ul>
-            </section>
+                    </form>
+                </div>
+                </div>
+
+                {/* Content Section */}
+                <div className="xl:col-span-2 space-y-8">
+                
+                {/* Jadwal Section */}
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/50 p-8 hover:shadow-2xl transition-all duration-300">
+                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center">
+                        <div className="w-12 h-12 bg-gradient-to-r from-green-400 to-emerald-500 rounded-xl flex items-center justify-center text-white text-xl font-bold mr-4">
+                        📅
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-800">Jadwal Guru</h2>
+                    </div>
+                    <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium">
+                        {jadwal.length} Jadwal
+                    </div>
+                    </div>
+
+                    <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {jadwal.length === 0 ? (
+                        <div className="text-center py-12">
+                        <div className="text-6xl mb-4">📅</div>
+                        <p className="text-slate-500 text-lg">Belum ada jadwal yang dibuat</p>
+                        </div>
+                    ) : (
+                        Array.from(
+                        Object.entries(
+                            jadwal.reduce((acc: any, cur) => {
+                            const key = `${cur.tanggal}_${cur.kode_absensi}`;
+                            if (!acc[key]) acc[key] = [];
+                            acc[key].push(cur);
+                            return acc;
+                            }, {})
+                        )
+                        ).map(([key, group]: any, idx) => {
+                        const tanggal = group[0].tanggal;
+                        const kode = group[0].kode_absensi;
+                        const namaHari = moment(tanggal).locale("id").format("dddd, DD MMMM YYYY");
+                        const semuaGuru = group.map((g: any) => g.guru).join(", ");
+                        
+                        return (
+                            <div key={idx} className="bg-gradient-to-r from-slate-50 to-white p-6 rounded-xl border border-slate-200 hover:shadow-md transition-all duration-200 transform hover:scale-[1.01]">
+                            <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                <h3 className="text-lg font-bold text-blue-800 mb-3 flex items-center gap-2">
+                                    📅 {namaHari}
+                                </h3>
+                                <div className="space-y-2 mb-4">
+                                    <p className="text-slate-700 flex items-center gap-2">
+                                    <span className="font-semibold">👨‍🏫 Guru:</span>
+                                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-sm">
+                                        {semuaGuru}
+                                    </span>
+                                    </p>
+                                    <p className="text-slate-700 flex items-center gap-2">
+                                    <span className="font-semibold">🎟️ Kode:</span>
+                                    <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full font-mono text-sm font-bold">
+                                        {kode}
+                                    </span>
+                                    </p>
+                                </div>
+                                </div>
+                                <button
+                                onClick={() => hapusJadwal(tanggal, kode)}
+                                disabled={loadingDelete}
+                                className="ml-4 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                {loadingDelete ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                ) : (
+                                    "🗑️"
+                                )}
+                                Hapus
+                                </button>
+                            </div>
+                            </div>
+                        );
+                        })
+                    )}
+                    </div>
+                </div>
+
+                {/* Users Section */}
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/50 p-8 hover:shadow-2xl transition-all duration-300">
+                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center">
+                        <div className="w-12 h-12 bg-gradient-to-r from-orange-400 to-red-500 rounded-xl flex items-center justify-center text-white text-xl font-bold mr-4">
+                        👥
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-800">Pengguna Terdaftar</h2>
+                    </div>
+                    <div className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-sm font-medium">
+                        {users.length} Users
+                    </div>
+                    </div>
+
+                    <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {users.length === 0 ? (
+                        <div className="text-center py-12">
+                        <div className="text-6xl mb-4">👥</div>
+                        <p className="text-slate-500 text-lg">Belum ada pengguna terdaftar</p>
+                        </div>
+                    ) : (
+                        users.map((u, i) => (
+                        <div key={i} className="bg-gradient-to-r from-slate-50 to-white p-6 rounded-xl border border-slate-200 hover:shadow-md transition-all duration-200 transform hover:scale-[1.01]">
+                            <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-4">
+                                <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                                    {u.nama.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-slate-800">{u.nama}</h3>
+                                    <p className="text-slate-600 text-sm">@{u.username}</p>
+                                </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-semibold text-slate-600">📍</span>
+                                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                                    {u.asal}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-semibold text-slate-600">🎓</span>
+                                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
+                                    {u.status} {u.keterangan && `- ${u.keterangan}`}
+                                    </span>
+                                </div>
+                                </div>
+                                
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                <p className="text-red-800 text-sm flex items-center gap-2">
+                                    <span className="font-semibold">🔑 Password:</span>
+                                    <span className="bg-red-100 text-red-900 px-2 py-1 rounded font-mono text-xs">
+                                    {u.password}
+                                    </span>
+                                </p>
+                                </div>
+                            </div>
+                            
+                            <button
+                                onClick={() => hapusUser(u.username)}
+                                disabled={loadingDelete}
+                                className="ml-4 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {loadingDelete ? (
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                ) : (
+                                "🗑️"
+                                )}
+                                Hapus
+                            </button>
+                            </div>
+                        </div>
+                        ))
+                    )}
+                    </div>
+                </div>
+                </div>
+            </div>
+            </div>
         </main>
         </>
     );

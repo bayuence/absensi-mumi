@@ -1,185 +1,443 @@
     "use client";
 
     import { useEffect, useState } from "react";
+    import { createClient } from "@supabase/supabase-js";
     import Navbar from "@/components/Navbar";
+    import moment from "moment";
+    import "moment/locale/id";
 
-    interface JadwalGuru {
-    tanggal: string;
-    guru: string[];
-    kode: string;
-    }
-
-    interface MateriItem {
-    tanggal: string;
-    guru: string[];
-    materi: string;
-    }
-
-    interface PengumumanItem {
-    isi: string;
-    tanggal: string;
-    }
-
-    interface UserItem {
-    username: string;
-    namaLengkap: string;
-    asal: string;
-    status: string;
-    }
+    const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
 
     export default function Dashboard() {
-    const [jadwalHariIni, setJadwalHariIni] = useState<JadwalGuru | null>(null);
-    const [jadwalSelanjutnya, setJadwalSelanjutnya] = useState<JadwalGuru | null>(null);
-    const [materiTerakhir, setMateriTerakhir] = useState<MateriItem | null>(null);
-    const [pengumumanList, setPengumumanList] = useState<PengumumanItem[]>([]);
-    const [userList, setUserList] = useState<UserItem[]>([]);
-    const [search, setSearch] = useState("");
+    const [user, setUser] = useState<any>(null);
+    const [todaySchedule, setTodaySchedule] = useState<any[]>([]);
+    const [nextSchedule, setNextSchedule] = useState<any[]>([]);
+    const [pengumuman, setPengumuman] = useState<any>(null);
+    const [materiTerakhir, setMateriTerakhir] = useState<any>(null);
+    const [userList, setUserList] = useState<any[]>([]);
+    const [error, setError] = useState("");
+
+    const today = moment().format("YYYY-MM-DD");
 
     useEffect(() => {
-        const jadwal: JadwalGuru[] = JSON.parse(localStorage.getItem("jadwal_guru") || "[]");
-        const today = new Date();
-        const todayStr = today.toISOString().split("T")[0];
+        const fetchData = async () => {
+        try {
+            // ambil user login
+            const username = localStorage.getItem("loggedUser");
+            if (!username) {
+            setError("❌ Pengguna belum login.");
+            return;
+            }
 
-        const format = (tgl: string) => {
-        if (!tgl) return "";
-        const [d, bulanNama, y] = tgl.split(" ");
-        const bulanList = [
-            "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-            "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-        ];
-        const m = (bulanList.indexOf(bulanNama) + 1).toString().padStart(2, "0");
-        return `${y}-${m}-${d}`;
+            const { data: userData } = await supabase
+            .from("users")
+            .select("*")
+            .eq("username", username)
+            .single();
+
+            if (!userData) {
+            setError("❌ Gagal memuat data pengguna.");
+            return;
+            }
+            setUser(userData);
+
+            // ambil semua user
+            const { data: allUsers } = await supabase.from("users").select("*");
+            setUserList(allUsers || []);
+
+            // ambil jadwal hari ini
+            const { data: todayData } = await supabase
+            .from("jadwal_guru")
+            .select("*")
+            .eq("tanggal", today);
+
+            setTodaySchedule(todayData || []);
+
+            // ambil jadwal setelah hari ini
+            const { data: nextData } = await supabase
+            .from("jadwal_guru")
+            .select("*")
+            .gt("tanggal", today)
+            .order("tanggal", { ascending: true })
+            .limit(1);
+
+            setNextSchedule(nextData || []);
+
+            // ambil pengumuman terbaru - PERBAIKAN
+            const { data: pengumumanData, error: pengumumanError } = await supabase
+            .from("pengumuman")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+            if (!pengumumanError && pengumumanData && pengumumanData.length > 0) {
+            setPengumuman(pengumumanData[0]);
+            } else {
+            setPengumuman(null);
+            }
+
+            // ambil materi terakhir - PERBAIKAN
+            const { data: materiData, error: materiError } = await supabase
+            .from("materi")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+            if (!materiError && materiData && materiData.length > 0) {
+            setMateriTerakhir(materiData[0]);
+            } else {
+            setMateriTerakhir(null);
+            }
+
+        } catch (err) {
+            console.error("Gagal mengambil data:", err);
+            setError("❌ Terjadi kesalahan saat memuat data.");
+        }
         };
 
-        const jadwalFormatted = jadwal.map((j) => ({ ...j, tanggalISO: format(j.tanggal) }));
-        const hariIni = jadwalFormatted.find((j) => j.tanggalISO === todayStr);
-        const setelahHariIni = jadwalFormatted.filter((j) => j.tanggalISO > todayStr);
-        const selanjutnya = setelahHariIni.sort((a, b) => (a.tanggalISO > b.tanggalISO ? 1 : -1))[0];
-
-        setJadwalHariIni(hariIni || null);
-        setJadwalSelanjutnya(selanjutnya || null);
-
-        const materi: MateriItem[] = JSON.parse(localStorage.getItem("materi") || "[]");
-        if (materi.length > 0) setMateriTerakhir(materi[0]);
-
-        const pengumuman: PengumumanItem[] = JSON.parse(localStorage.getItem("pengumuman") || "[]");
-        setPengumumanList(pengumuman);
-
-        const users: UserItem[] = JSON.parse(localStorage.getItem("users") || "[]");
-        const sorted = users.sort((a, b) => a.namaLengkap.localeCompare(b.namaLengkap));
-        setUserList(sorted);
+        fetchData();
     }, []);
 
-    const filteredUsers = userList.filter((u) =>
-        u.namaLengkap.toLowerCase().includes(search.toLowerCase()) ||
-        u.asal.toLowerCase().includes(search.toLowerCase()) ||
-        u.status.toLowerCase().includes(search.toLowerCase())
+    const sortedUsers = [...userList].sort((a, b) =>
+        a.nama.localeCompare(b.nama)
     );
 
     return (
         <>
         <Navbar />
-        <main className="min-h-screen bg-blue-50 py-10 px-4 space-y-10">
-            <div className="bg-white p-6 rounded-xl shadow-md text-center">
-            <h1 className="text-2xl font-bold text-blue-800 mb-2">Selamat Datang di MUMI BP Kulon</h1>
-            <p className="text-gray-700">
-                Website absensi untuk pengajian MUMI BP Kulon. Kami pengurus akan lebih mudah mengontrol kehadiran.
-                Semoga ngajinya tertib dan selalu bersemangat, tidak bolos! 💪
-            </p>
+        <main className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 px-4 py-6 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto">
+            {/* Header Welcome */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8 mb-8 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 opacity-5"></div>
+                <div className="relative">
+                <div className="flex items-center space-x-3 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                    <span className="text-white text-2xl">🕌</span>
+                    </div>
+                    <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                        Selamat Datang di MUMI BP Kulon
+                    </h1>
+                    <p className="text-sm text-gray-500 mt-1">
+                        {moment().locale('id').format('dddd, DD MMMM YYYY')}
+                    </p>
+                    </div>
+                </div>
+                <p className="text-gray-700 leading-relaxed">
+                    Website absensi untuk pengajian MUMI BP Kulon. Kami pengurus akan
+                    lebih mudah mengontrol kehadiran. Semoga ngajinya tertib dan selalu
+                    bersemangat, tidak bolos! 💪
+                </p>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-xl shadow-md">
-                <h2 className="text-lg font-semibold text-blue-800 mb-2">📚 Materi Terakhir</h2>
-                {materiTerakhir ? (
-                <>
-                    <p className="text-sm text-gray-700 mb-1">{materiTerakhir.materi}</p>
-                    <p className="text-sm text-gray-600">{materiTerakhir.guru.join(", ")} • {materiTerakhir.tanggal}</p>
-                </>
-                ) : (
-                <p className="text-sm text-gray-500">Belum ada materi terakhir.</p>
-                )}
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-md">
-                <h2 className="text-lg font-semibold text-blue-800 mb-2">📅 Jadwal Hari Ini</h2>
-                {jadwalHariIni ? (
-                <>
-                    <p className="text-sm text-gray-600 mb-1">{jadwalHariIni.tanggal}</p>
-                    <ul className="list-disc list-inside text-sm text-gray-700">
-                    {jadwalHariIni.guru.map((g, i) => (
-                        <li key={i}>👤 {g}</li>
-                    ))}
-                    </ul>
-                </>
-                ) : (
-                <p className="text-sm text-gray-500">Belum ada jadwal untuk hari ini.</p>
-                )}
-            </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-md">
-            <h2 className="text-lg font-semibold text-blue-800 mb-2">⏭ Jadwal Selanjutnya</h2>
-            {jadwalSelanjutnya ? (
-                <>
-                <p className="text-sm text-gray-600 mb-1">{jadwalSelanjutnya.tanggal}</p>
-                <ul className="list-disc list-inside text-sm text-gray-700">
-                    {jadwalSelanjutnya.guru.map((g, i) => (
-                    <li key={i}>👤 {g}</li>
-                    ))}
-                </ul>
-                </>
-            ) : (
-                <p className="text-sm text-gray-500">Belum ada jadwal berikutnya.</p>
+            {error && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center space-x-3">
+                <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                    <span className="text-red-600 text-sm">⚠️</span>
+                </div>
+                <p className="text-red-700 font-medium">{error}</p>
+                </div>
             )}
+
+            {/* Main Cards Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {/* Materi Terakhir */}
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300">
+                <div className="bg-gradient-to-r from-pink-500 to-rose-500 p-4">
+                    <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                        <span className="text-white text-xl">📘</span>
+                    </div>
+                    <h2 className="text-xl font-bold text-white">Materi Terakhir</h2>
+                    </div>
+                </div>
+                <div className="p-6">
+                    {materiTerakhir ? (
+                    <div className="space-y-4">
+                        <div className="flex items-center space-x-2 text-sm text-gray-500">
+                        <span className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center">📅</span>
+                        <span>{materiTerakhir.tanggal}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <span className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center">👤</span>
+                        <span className="font-medium">
+                            Guru: {Array.isArray(materiTerakhir.guru) 
+                            ? materiTerakhir.guru.join(", ") 
+                            : materiTerakhir.guru}
+                        </span>
+                        </div>
+                        <div className="bg-gray-50 rounded-xl p-4">
+                        <p className="text-gray-800 leading-relaxed">{materiTerakhir.isi}</p>
+                        </div>
+                    </div>
+                    ) : (
+                    <div className="text-center py-8">
+                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span className="text-gray-400 text-2xl">📚</span>
+                        </div>
+                        <p className="text-gray-500">Belum ada materi terbaru</p>
+                    </div>
+                    )}
+                </div>
+                </div>
+
+                {/* Jadwal */}
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300">
+                <div className="bg-gradient-to-r from-purple-500 to-indigo-500 p-4">
+                    <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                        <span className="text-white text-xl">📅</span>
+                    </div>
+                    <h2 className="text-xl font-bold text-white">Jadwal Pengajian</h2>
+                    </div>
+                </div>
+                <div className="p-6 space-y-6">
+                    {/* Jadwal Hari Ini */}
+                    <div>
+                    <h3 className="font-semibold text-purple-700 mb-3 flex items-center space-x-2">
+                        <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                        <span>Hari Ini</span>
+                    </h3>
+                    {todaySchedule.length === 0 ? (
+                        <div className="bg-gray-50 rounded-xl p-4 text-center">
+                        <p className="text-gray-500 text-sm">Belum ada jadwal untuk hari ini</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                        {todaySchedule.map((item: any) => (
+                            <div key={item.id} className="bg-purple-50 rounded-lg p-3 flex items-center space-x-3">
+                            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                                <span className="text-purple-600 text-sm">👤</span>
+                            </div>
+                            <span className="text-purple-800 font-medium">{item.guru}</span>
+                            </div>
+                        ))}
+                        </div>
+                    )}
+                    </div>
+
+                    {/* Jadwal Selanjutnya */}
+                    <div>
+                    <h3 className="font-semibold text-indigo-700 mb-3 flex items-center space-x-2">
+                        <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
+                        <span>Jadwal Selanjutnya</span>
+                    </h3>
+                    {nextSchedule.length === 0 ? (
+                        <div className="bg-gray-50 rounded-xl p-4 text-center">
+                        <p className="text-gray-500 text-sm">Belum ada jadwal berikutnya</p>
+                        </div>
+                    ) : (
+                        <div className="bg-indigo-50 rounded-lg p-4">
+                        <p className="text-sm text-indigo-600 mb-2">{nextSchedule[0].tanggal}</p>
+                        <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+                            <span className="text-indigo-600 text-sm">👤</span>
+                            </div>
+                            <span className="text-indigo-800 font-medium">{nextSchedule[0].guru}</span>
+                        </div>
+                        </div>
+                    )}
+                    </div>
+                </div>
+                </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-md">
-            <h2 className="text-lg font-semibold text-blue-800 mb-2">📢 Pengumuman</h2>
-            {pengumumanList.length > 0 ? (
-                <ul className="space-y-3">
-                {pengumumanList.map((p, i) => (
-                    <li key={i} className="text-sm text-gray-700 border-b pb-2">
-                    <p className="font-semibold text-gray-800">📅 {p.tanggal}</p>
-                    <p>{p.isi}</p>
-                    </li>
-                ))}
-                </ul>
-            ) : (
-                <p className="text-sm text-gray-500">Belum ada pengumuman terbaru.</p>
-            )}
-            <p className="text-xs text-gray-400 mt-2">Pantau halaman ini untuk update penting.</p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-md">
-            <h2 className="text-lg font-semibold text-blue-800 mb-4">👥 Daftar Anggota</h2>
-            <input
-                type="text"
-                placeholder="Cari nama, asal, atau status..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full mb-4 p-3 border border-gray-300 rounded-md bg-white text-gray-800"
-            />
-            <ul className="space-y-3">
-                {filteredUsers.map((user, index) => (
-                <li key={index} className="border-b pb-2 text-sm text-gray-700">
-                    <p className="font-semibold text-blue-800">{user.namaLengkap}</p>
-                    <p className="text-sm text-gray-600">Asal: {user.asal}</p>
-                    <p className="text-sm text-gray-600">Status: {user.status}</p>
-                </li>
-                ))}
-                {filteredUsers.length === 0 && (
-                <p className="text-sm text-gray-500">Tidak ditemukan hasil pencarian.</p>
+            {/* Pengumuman */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden mb-8 hover:shadow-xl transition-all duration-300">
+                <div className="bg-gradient-to-r from-rose-500 to-pink-500 p-4">
+                <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    <span className="text-white text-xl">📢</span>
+                    </div>
+                    <h2 className="text-xl font-bold text-white">Pengumuman</h2>
+                </div>
+                </div>
+                <div className="p-6">
+                {pengumuman ? (
+                    <div className="space-y-4">
+                    <div className="flex items-center space-x-2 text-sm text-gray-500">
+                        <span className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center">📅</span>
+                        <span>{pengumuman.tanggal}</span>
+                    </div>
+                    <div className="bg-rose-50 rounded-xl p-4 border-l-4 border-rose-400">
+                        <p className="text-gray-800 leading-relaxed">{pengumuman.isi}</p>
+                    </div>
+                    </div>
+                ) : (
+                    <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span className="text-gray-400 text-2xl">📢</span>
+                    </div>
+                    <p className="text-gray-500">Belum ada pengumuman terbaru</p>
+                    </div>
                 )}
-            </ul>
+                </div>
             </div>
-            <div className="bg-white p-6 rounded-xl shadow-md text-center">
-            <h2 className="text-sm text-gray-600">✨ Website ini dibuat dengan semangat oleh</h2>
-            <p className="text-base font-semibold text-blue-700">Bayuence</p>
-            <p className="text-xs text-gray-500 italic mt-1">Semoga membawa manfaat untuk jamaah MUMI BP Kulon dan menjadi amal jariyah. 🤲</p>
+
+            {/* Daftar Anggota */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300">
+                <div className="bg-gradient-to-r from-sky-500 to-blue-500 p-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                        <span className="text-white text-xl">👥</span>
+                    </div>
+                    <h2 className="text-xl font-bold text-white">Daftar Anggota</h2>
+                    </div>
+                    <div className="bg-white/20 rounded-lg px-3 py-1">
+                    <span className="text-white text-sm font-medium">{sortedUsers.length} Anggota</span>
+                    </div>
+                </div>
+                </div>
+                <div className="p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {sortedUsers.map((u, index) => (
+                    <div 
+                        key={u.username} 
+                        className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200 hover:shadow-md hover:scale-105 transition-all duration-200"
+                        style={{
+                        animationDelay: `${index * 50}ms`
+                        }}
+                    >
+                        <div className="flex items-start space-x-3">
+                        <div className="w-10 h-10 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-white font-bold text-sm">
+                            {u.nama.charAt(0).toUpperCase()}
+                            </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-gray-900 truncate">{u.nama}</h3>
+                            <p className="text-sm text-gray-600 flex items-center mt-1">
+                            <span className="w-4 h-4 bg-green-100 rounded-full flex items-center justify-center mr-2">
+                                <span className="text-green-600 text-xs">📍</span>
+                            </span>
+                            {u.asal}
+                            </p>
+                            <div className="flex items-center mt-2">
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                u.status === 'aktif' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                                {u.status}
+                            </span>
+                            {u.keterangan && (
+                                <span className="ml-2 text-xs text-gray-500 truncate">
+                                {u.keterangan}
+                                </span>
+                            )}
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                    ))}
+                </div>
+                </div>
+            </div>
             </div>
         </main>
+        
+        {/* Beautiful Footer */}
+        <footer className="bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900 text-white relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-400/20 via-transparent to-transparent"></div>
+            
+            <div className="relative max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+            <div className="text-center space-y-8">
+                {/* Logo dan Title */}
+                <div className="flex flex-col items-center space-y-4">
+                <div className="w-16 h-16 bg-gradient-to-r from-blue-400 to-purple-500 rounded-2xl flex items-center justify-center shadow-2xl">
+                    <span className="text-white text-3xl">🕌</span>
+                </div>
+                <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                    MUMI BP Kulon
+                </h3>
+                </div>
+
+                {/* Doa dan Harapan */}
+                <div className="max-w-4xl mx-auto space-y-6">
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
+                    <div className="flex items-center justify-center space-x-3 mb-6">
+                    <span className="text-2xl">🤲</span>
+                    <h4 className="text-xl font-semibold text-purple-200">Doa & Harapan</h4>
+                    <span className="text-2xl">🤲</span>
+                    </div>
+                    <p className="text-gray-300 leading-relaxed text-lg italic">
+                    "Semoga platform digital ini menjadi wasilah yang baik dalam mempererat ukhuwah dan 
+                    meningkatkan semangat menuntut ilmu para jamaah Muda-Mudi BP Kulon. Barokallahu fiikum, 
+                    semoga setiap langkah dalam mencari ilmu menjadi ladang pahala dan amal jariyah yang 
+                    mengalir terus menerus hingga akhirat.
+                    Demikian atas perhatian dan kerjasamanya kami syukuri.                                                                   
+
+                        اَلْحَمْدُ لِلّٰـهِ جَزَّا كُمُ اللّٰــہ خَيْـــــــرًا                                        
+
+
+
+                    "
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:bg-white/10 transition-all duration-300">
+                    <div className="text-center">
+                        <span className="text-3xl mb-3 block">📚</span>
+                        <h5 className="font-semibold text-blue-200 mb-2">Ilmu Bermanfaat</h5>
+                        <p className="text-sm text-gray-400">Semoga menjadi sarana pembelajaran yang barokah</p>
+                    </div>
+                    </div>
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:bg-white/10 transition-all duration-300">
+                    <div className="text-center">
+                        <span className="text-3xl mb-3 block">🤝</span>
+                        <h5 className="font-semibold text-purple-200 mb-2">Ukhuwah Islamiyah</h5>
+                        <p className="text-sm text-gray-400">Mempererat tali persaudaraan sesama jamaah</p>
+                    </div>
+                    </div>
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:bg-white/10 transition-all duration-300">
+                    <div className="text-center">
+                        <span className="text-3xl mb-3 block">⭐</span>
+                        <h5 className="font-semibold text-green-200 mb-2">Amal Jariyah</h5>
+                        <p className="text-sm text-gray-400">Pahala yang terus mengalir tanpa henti</p>
+                    </div>
+                    </div>
+                </div>
+                </div>
+
+                {/* Developer Credit */}
+                <div className="border-t border-white/10 pt-8">
+                <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-2xl p-6 border border-white/10">
+                    <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
+                    <div className="flex items-center space-x-3">
+                        <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center shadow-lg">
+                        <span className="text-white font-bold text-lg">B</span>
+                        </div>
+                        <div className="text-left">
+                        <p className="text-white font-semibold">Dikembangkan oleh</p>
+                        <p className="text-blue-300 font-bold text-lg">bayuence</p>
+                        </div>
+                    </div>
+                    <div className="h-12 w-px bg-white/20 hidden sm:block"></div>
+                    <div className="text-center sm:text-left">
+                        <p className="text-sm text-gray-300">Modern • Interactive • Responsive</p>
+                        <p className="text-xs text-gray-400 mt-1">Built with Next.js & Tailwind CSS</p>
+                    </div>
+                    </div>
+                </div>
+                </div>
+
+                {/* Copyright */}
+                <div className="pt-6 border-t border-white/10">
+                <p className="text-gray-400 text-sm">
+                    © 2025 MUMI BP Kulon. Dibuat dengan penuh keikhlasan untuk kemajuan umat.
+                </p>
+                </div>
+            </div>
+            </div>
+        </footer>
         </>
     );
     }
-
