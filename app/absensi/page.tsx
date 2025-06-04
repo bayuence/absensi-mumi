@@ -114,8 +114,8 @@
         if (bulan === null || tahun === null) return;
 
         async function fetchRekap() {
-        const awal = moment([tahun, bulan, 1]).startOf("month").format("YYYY-MM-DD");
-        const akhir = moment([tahun, bulan, 1]).endOf("month").format("YYYY-MM-DD");
+        const awal = moment([tahun!, bulan!, 1]).startOf("month").format("YYYY-MM-DD");
+        const akhir = moment([tahun!, bulan!, 1]).endOf("month").format("YYYY-MM-DD");
 
         const { data: semuaUser } = await supabase.from("users").select("*");
         const { data: semuaAbsen } = await supabase
