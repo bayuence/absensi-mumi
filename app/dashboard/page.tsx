@@ -128,7 +128,7 @@
                     </div>
                 </div>
                 <p className="text-gray-700 leading-relaxed">
-                    Website absensi untuk pengajian MUMI BP Kulon. Kami pengurus akan
+                    Website untuk pengajian MUMI BP Kulon. Kami pengurus akan
                     lebih mudah mengontrol kehadiran. Semoga ngajinya tertib dan selalu
                     bersemangat, tidak bolos! 💪
                 </p>
