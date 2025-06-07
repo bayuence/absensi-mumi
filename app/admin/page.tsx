@@ -1,3 +1,4 @@
+
     "use client";
 
     import { useEffect, useState } from "react";
@@ -26,9 +27,12 @@
     const [kodeAbsensi, setKodeAbsensi] = useState("");
     const [jadwal, setJadwal] = useState<any[]>([]);
     const [users, setUsers] = useState<any[]>([]);
+    const [absensiList, setAbsensiList] = useState<any[]>([]);
+    const [selectedDate, setSelectedDate] = useState(moment().format("YYYY-MM-DD"));
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [loadingDelete, setLoadingDelete] = useState(false);
+    const [loadingReject, setLoadingReject] = useState<string | null>(null);
 
     const fetchJadwal = async () => {
         const { data } = await supabase
@@ -43,10 +47,46 @@
         setUsers(data || []);
     };
 
+    const fetchAbsensiByDate = async (date: string) => {
+        console.log("Fetching absensi for date:", date);
+        
+        // Mencoba berbagai format tanggal untuk mencocokkan dengan database
+        const formatDate = moment(date).format("YYYY-MM-DD");
+        
+        const { data, error } = await supabase
+        .from("absensi")
+        .select("*")
+        .eq("tanggal", formatDate)
+        .order("id", { ascending: false });
+        
+        if (error) {
+        console.error("Error fetching absensi:", error);
+        // Jika gagal dengan format YYYY-MM-DD, coba format lain
+        const altFormatDate = moment(date).format("DD/MM/YYYY");
+        const { data: altData, error: altError } = await supabase
+            .from("absensi")
+            .select("*")
+            .eq("tanggal", altFormatDate)
+            .order("id", { ascending: false });
+        
+        if (altError) {
+            console.error("Error with alternative format:", altError);
+            setAbsensiList([]);
+        } else {
+            console.log("Fetched absensi data (alternative format):", altData);
+            setAbsensiList(altData || []);
+        }
+        } else {
+        console.log("Fetched absensi data:", data);
+        setAbsensiList(data || []);
+        }
+    };
+
     useEffect(() => {
         fetchJadwal();
         fetchUsers();
-    }, []);
+        fetchAbsensiByDate(selectedDate);
+    }, [selectedDate]);
 
     const handleSubmit = async (e: any) => {
         e.preventDefault();
@@ -95,6 +135,32 @@
         await supabase.from("users").delete().eq("username", username);
         fetchUsers();
         setLoadingDelete(false);
+    };
+
+    const tolakPresensi = async (id: number, username: string, nama: string) => {
+        setLoadingReject(`${id}`);
+        
+        try {
+        const { error } = await supabase
+            .from("absensi")
+            .delete()
+            .eq("id", id);
+        
+        if (error) {
+            console.error("Error menolak presensi:", error);
+            alert("Gagal menolak presensi: " + error.message);
+        } else {
+            // Refresh data absensi setelah penolakan berhasil
+            await fetchAbsensiByDate(selectedDate);
+            console.log(`Presensi ${nama} (${username}) berhasil ditolak dan dihapus`);
+            alert(`Presensi ${nama} berhasil ditolak dan dihapus dari sistem`);
+        }
+        } catch (error) {
+        console.error("Error unexpected:", error);
+        alert("Terjadi kesalahan tidak terduga");
+        } finally {
+        setLoadingReject(null);
+        }
     };
 
     const handleRemoveGuru = (index: number) => {
@@ -232,6 +298,124 @@
                 {/* Content Section */}
                 <div className="xl:col-span-2 space-y-8">
                 
+                {/* Kelola Presensi Section - UPDATED */}
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/50 p-8 hover:shadow-2xl transition-all duration-300">
+                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center">
+                        <div className="w-12 h-12 bg-gradient-to-r from-red-400 to-pink-500 rounded-xl flex items-center justify-center text-white text-xl font-bold mr-4">
+                        ✅
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-800">Kelola Kehadiran</h2>
+                    </div>
+                    <div className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">
+                        {absensiList.length} Hadir
+                    </div>
+                    </div>
+
+                    {/* Date Selector for Attendance Management */}
+                    <div className="mb-6">
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        📅 Pilih Tanggal untuk Melihat Kehadiran
+                    </label>
+                    <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => {
+                        setSelectedDate(e.target.value);
+                        console.log("Selected date changed to:", e.target.value);
+                        }}
+                        className="px-4 py-2 border-2 border-slate-200 rounded-xl bg-white/70 text-slate-900 focus:border-red-400 focus:ring-4 focus:ring-red-100 transition-all duration-200"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                        Menampilkan daftar siswa yang hadir pada tanggal: {moment(selectedDate).format("DD/MM/YYYY")}
+                    </p>
+                    </div>
+
+                    <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {absensiList.length === 0 ? (
+                        <div className="text-center py-12">
+                        <div className="text-6xl mb-4">📋</div>
+                        <p className="text-slate-500 text-lg">Tidak ada siswa yang hadir pada tanggal {moment(selectedDate).format("DD/MM/YYYY")}</p>
+                        <p className="text-slate-400 text-sm mt-2">Pilih tanggal lain untuk melihat daftar kehadiran</p>
+                        </div>
+                    ) : (
+                        absensiList.map((absen, idx) => {
+                        const waktuPresensi = absen.waktu || (absen.created_at ? moment(absen.created_at).format("HH:mm:ss") : "N/A");
+                        
+                        return (
+                            <div key={absen.id || idx} className="bg-gradient-to-r from-green-50 to-white p-6 rounded-xl border border-green-200 hover:shadow-md transition-all duration-200">
+                            <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-12 h-12 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                                    {absen.nama ? absen.nama.charAt(0).toUpperCase() : '?'}
+                                    </div>
+                                    <div>
+                                    <h3 className="text-lg font-bold text-slate-800">{absen.nama || 'Nama tidak tersedia'}</h3>
+                                    <p className="text-slate-600 text-sm">@{absen.username || 'Username tidak tersedia'}</p>
+                                    </div>
+                                    <div className="ml-4">
+                                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
+                                        ✅ HADIR
+                                    </span>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-4 mb-3">
+                                    <div className="flex items-center gap-2">
+                                    <span className="text-sm font-semibold text-slate-600">📅</span>
+                                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                                        {moment(absen.tanggal).format("DD/MM/YYYY")}
+                                    </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                    <span className="text-sm font-semibold text-slate-600">⏰</span>
+                                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
+                                        {waktuPresensi}
+                                    </span>
+                                    </div>
+                                    {absen.status_presensi && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-semibold text-slate-600">📋</span>
+                                        <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs">
+                                        {absen.status_presensi}
+                                        </span>
+                                    </div>
+                                    )}
+                                </div>
+                                
+                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                                    <p className="text-yellow-800 text-sm">
+                                    <span className="font-semibold">⚠️ Peringatan:</span>
+                                    Klik "Tolak & Hapus" jika siswa ini tidak benar-benar hadir namun berhasil mengisi presensi
+                                    </p>
+                                </div>
+                                </div>
+                                
+                                <button
+                                onClick={() => tolakPresensi(absen.id, absen.username, absen.nama)}
+                                disabled={loadingReject === `${absen.id}`}
+                                className="ml-4 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                {loadingReject === `${absen.id}` ? (
+                                    <>
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    Menolak...
+                                    </>
+                                ) : (
+                                    <>
+                                    🗑️ Tolak & Hapus
+                                    </>
+                                )}
+                                </button>
+                            </div>
+                            </div>
+                        );
+                        })
+                    )}
+                    </div>
+                </div>
+
                 {/* Jadwal Section */}
                 <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/50 p-8 hover:shadow-2xl transition-all duration-300">
                     <div className="flex items-center justify-between mb-6">

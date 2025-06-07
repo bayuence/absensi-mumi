@@ -135,9 +135,12 @@
         const pertemuanSet = new Set((semuaTanggal?.map(j => j.tanggal)) || []);
         const totalPertemuan = pertemuanSet.size;
 
+        // PERBAIKAN UTAMA: perhitungan yang benar
         const hasil = semuaUser?.map((u) => {
             const jumlahHadir = semuaAbsen?.filter((a) => a.username === u.username).length || 0;
-            const jumlahTidakHadir = totalPertemuan - jumlahHadir;
+            // PERBAIKAN: pastikan jumlahTidakHadir tidak negatif
+            const jumlahTidakHadir = Math.max(0, totalPertemuan - jumlahHadir);
+            // PERBAIKAN: pastikan persentase dihitung dengan benar dan tidak NaN
             const persentaseHadir = totalPertemuan > 0 ? Math.round((jumlahHadir / totalPertemuan) * 100) : 0;
             return { nama: u.nama, jumlahHadir, jumlahTidakHadir, persentaseHadir };
         });
