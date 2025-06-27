@@ -19,12 +19,12 @@
     const [hadirHariIni, setHadirHariIni] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    
+
     // Fix hydration mismatch - initialize with null and set in useEffect
     const [bulan, setBulan] = useState<number | null>(null);
     const [tahun, setTahun] = useState<number | null>(null);
     const [today, setToday] = useState<string>("");
-    
+
     const bulanNama = bulan !== null ? moment().month(bulan).format("MMMM") : "";
 
     // Initialize date values on client side only
@@ -38,7 +38,6 @@
     useEffect(() => {
         const logged = localStorage.getItem("loggedUser");
         if (!logged) return;
-
         supabase
         .from("users")
         .select("*")
@@ -58,54 +57,79 @@
         console.log("Today is not set yet");
         return;
         }
-        
+
         setIsRefreshing(true);
         console.log("=== Starting fetchHadirHariIni ===");
         console.log("Today value:", today);
-        
+
         try {
-        // Coba query paling sederhana dulu
-        console.log("Testing basic connection...");
-        const { data: basicTest, error: basicError } = await supabase
+        // Query dengan format tanggal yang benar
+        const { data: hadirData, error } = await supabase
             .from("absensi")
-            .select("*");
-        
-        console.log("Basic test - Data:", basicTest);
-        console.log("Basic test - Error:", basicError);
-        
-        if (basicError) {
-            console.error("Basic connection failed:", basicError);
+            .select("*")
+            .eq("tanggal", today)
+            .eq("status", "HADIR");
+
+        console.log("Hadir data:", hadirData);
+        console.log("Error:", error);
+
+        if (error) {
+            console.error("Error fetching attendance:", error);
             setHadirHariIni([]);
             return;
         }
-        
-        if (!basicTest || basicTest.length === 0) {
-            console.log("No data in absensi table");
-            setHadirHariIni([]);
-            return;
-        }
-        
-        // Tampilkan struktur data
-        console.log("Sample data structure:", basicTest[0]);
-        
-        // Filter manual di JavaScript (bukan di Supabase)
-        const todayFormatted = moment().format("YYYY-MM-DD");
-        console.log("Filtering for date:", todayFormatted);
-        
-        const filteredData = basicTest.filter(item => {
-            console.log("Checking item:", item.tanggal, "vs", todayFormatted);
-            return item.tanggal === todayFormatted;
-        });
-        
-        console.log("Filtered results:", filteredData);
-        
-        setHadirHariIni(filteredData);
-        
+
+        setHadirHariIni(hadirData || []);
         } catch (err) {
         console.error("Catch error:", err);
         setHadirHariIni([]);
         } finally {
         setIsRefreshing(false);
+        }
+    };
+
+    // Fungsi untuk mencatat ketidakhadiran otomatis
+    const recordAbsences = async (tanggal: string) => {
+        try {
+        // Ambil semua jadwal untuk tanggal tersebut
+        const { data: jadwalHariIni } = await supabase
+            .from("jadwal_guru")
+            .select("*")
+            .eq("tanggal", tanggal);
+
+        if (!jadwalHariIni || jadwalHariIni.length === 0) {
+            return;
+        }
+
+        // Ambil semua user
+        const { data: semuaUser } = await supabase.from("users").select("*");
+
+        if (!semuaUser) return;
+
+        // Ambil semua yang sudah absen hari ini
+        const { data: sudahAbsen } = await supabase
+            .from("absensi")
+            .select("*")
+            .eq("tanggal", tanggal);
+
+        const userSudahAbsen = new Set(sudahAbsen?.map((a) => a.username) || []);
+
+        // Buat record ketidakhadiran untuk user yang belum absen
+        const ketidakhadiranRecords = semuaUser
+            .filter((user) => !userSudahAbsen.has(user.username))
+            .map((user) => ({
+            username: user.username,
+            nama: user.nama,
+            tanggal: tanggal,
+            status: "TIDAK_HADIR",
+            }));
+
+        if (ketidakhadiranRecords.length > 0) {
+            await supabase.from("absensi").insert(ketidakhadiranRecords);
+            console.log(`Recorded ${ketidakhadiranRecords.length} absences for ${tanggal}`);
+        }
+        } catch (error) {
+        console.error("Error recording absences:", error);
         }
     };
 
@@ -118,43 +142,66 @@
         const akhir = moment([tahun!, bulan!, 1]).endOf("month").format("YYYY-MM-DD");
 
         const { data: semuaUser } = await supabase.from("users").select("*");
+
+        // Ambil semua record absensi untuk bulan ini
         const { data: semuaAbsen } = await supabase
             .from("absensi")
             .select("*")
             .gte("tanggal", awal)
             .lte("tanggal", akhir);
 
-        // Fix: Destructure data from supabase response
+        // Ambil semua tanggal jadwal
         const { data: semuaTanggal } = await supabase
             .from("jadwal_guru")
             .select("tanggal")
             .gte("tanggal", awal)
             .lte("tanggal", akhir);
 
-        // Now semuaTanggal is an array
-        const pertemuanSet = new Set((semuaTanggal?.map(j => j.tanggal)) || []);
-        const totalPertemuan = pertemuanSet.size;
+        // Pastikan ketidakhadiran tercatat untuk setiap jadwal yang sudah lewat
+        const today = moment().format("YYYY-MM-DD");
+        const jadwalLewat = semuaTanggal?.filter((j) => j.tanggal < today) || [];
 
-        // PERBAIKAN UTAMA: perhitungan yang benar
+        for (const jadwal of jadwalLewat) {
+            await recordAbsences(jadwal.tanggal);
+        }
+
+        // Refresh data absensi setelah recording absences
+        const { data: updatedAbsen } = await supabase
+            .from("absensi")
+            .select("*")
+            .gte("tanggal", awal)
+            .lte("tanggal", akhir);
+
+        // PERHITUNGAN BERDASARKAN RECORD AKTUAL DI DATABASE
         const hasil = semuaUser?.map((u) => {
-            const jumlahHadir = semuaAbsen?.filter((a) => a.username === u.username).length || 0;
-            // PERBAIKAN: pastikan jumlahTidakHadir tidak negatif
-            const jumlahTidakHadir = Math.max(0, totalPertemuan - jumlahHadir);
-            // PERBAIKAN: pastikan persentase dihitung dengan benar dan tidak NaN
-            const persentaseHadir = totalPertemuan > 0 ? Math.round((jumlahHadir / totalPertemuan) * 100) : 0;
-            return { nama: u.nama, jumlahHadir, jumlahTidakHadir, persentaseHadir };
+            const userAbsen = updatedAbsen?.filter((a) => a.username === u.username) || [];
+
+            // Hitung berdasarkan kolom status
+            const jumlahHadir = userAbsen.filter((a) => a.status === "HADIR").length;
+            const jumlahTidakHadir = userAbsen.filter((a) => a.status === "TIDAK_HADIR").length;
+
+            // Hitung persentase berdasarkan total absensi yang tercatat
+            const totalAbsensi = jumlahHadir + jumlahTidakHadir;
+            const persentaseHadir = totalAbsensi > 0 ? Math.round((jumlahHadir / totalAbsensi) * 100) : 0;
+
+            return {
+            nama: u.nama,
+            jumlahHadir,
+            jumlahTidakHadir,
+            persentaseHadir,
+            };
         });
 
         setRekap(hasil || []);
         }
+
         fetchRekap();
     }, [bulan, tahun]);
 
     const handlePresensi = async () => {
         if (!user || !today) return;
-
         setIsLoading(true);
-        
+
         const { data: jadwalHariIni } = await supabase
         .from("jadwal_guru")
         .select("*")
@@ -166,7 +213,7 @@
         return;
         }
 
-        const cocok = jadwalHariIni.find(j => j.kode_absensi === kodeGuru.trim());
+        const cocok = jadwalHariIni.find((j) => j.kode_absensi === kodeGuru.trim());
         if (!cocok) {
         setAbsenStatus("❌ Kode salah.");
         setIsLoading(false);
@@ -186,11 +233,13 @@
         return;
         }
 
+        // Insert record dengan format yang benar
         const { error } = await supabase.from("absensi").insert([
         {
             username: user.username,
             nama: user.nama,
             tanggal: today,
+            status: "HADIR",
         },
         ]);
 
@@ -200,6 +249,7 @@
         fetchHadirHariIni();
         } else {
         setAbsenStatus("❌ Gagal presensi.");
+        console.error("Insert error:", error);
         }
         setIsLoading(false);
     };
@@ -228,7 +278,6 @@
         <Navbar />
         <main className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 px-4 py-6">
             <div className="max-w-4xl mx-auto space-y-6">
-            
             {/* Header */}
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 opacity-5"></div>
@@ -257,7 +306,7 @@
                     <h2 className="text-xl font-bold text-white">Form Presensi</h2>
                 </div>
                 </div>
-                
+
                 <div className="p-6 space-y-6">
                 <div className="space-y-3">
                     <label className="block text-sm font-semibold text-gray-700">
@@ -301,11 +350,13 @@
                 </button>
 
                 {absenStatus && (
-                    <div className={`p-4 rounded-xl border-l-4 ${
-                    absenStatus.includes("✅") 
-                        ? "bg-green-50 border-green-400 text-green-800" 
+                    <div
+                    className={`p-4 rounded-xl border-l-4 ${
+                        absenStatus.includes("✅")
+                        ? "bg-green-50 border-green-400 text-green-800"
                         : "bg-red-50 border-red-400 text-red-800"
-                    }`}>
+                    }`}
+                    >
                     <p className="font-semibold flex items-center space-x-2">
                         <span>{absenStatus}</span>
                     </p>
@@ -343,7 +394,6 @@
                     </button>
                 </div>
                 </div>
-
                 <div className="p-6">
                 {hadirHariIni.length > 0 ? (
                     <div className="space-y-4">
@@ -356,13 +406,13 @@
                         </div>
                         </div>
                     </div>
-                    
+
                     {/* Attendance List */}
                     <div className="space-y-3 max-h-80 overflow-y-auto">
                         {hadirHariIni.map((item, idx) => {
-                        const waktuPresensi = item.created_at ? moment(item.created_at).format("HH:mm") : "N/A";
+                        const waktuPresensi = item.created_at ? moment(item.created_at).format("HH:mm") : moment().format("HH:mm");
                         const isRecentlyAdded = item.created_at && moment().diff(moment(item.created_at), 'minutes') < 2;
-                        
+
                         return (
                             <div
                             key={idx}
@@ -388,7 +438,7 @@
                                 </div>
                                 </div>
                             </div>
-                            
+
                             <div className="text-right">
                                 <div className={`text-lg font-bold ${isRecentlyAdded ? 'text-green-600' : 'text-gray-600'}`}>
                                 ⏰ {waktuPresensi}
@@ -429,7 +479,6 @@
                     </h2>
                 </div>
                 </div>
-
                 <div className="p-6 space-y-6">
                 {/* Navigation */}
                 <div className="flex items-center justify-center space-x-4">
@@ -445,7 +494,7 @@
                     <span>←</span>
                     <span>Sebelumnya</span>
                     </button>
-                    
+
                     <div className="bg-gray-100 px-6 py-3 rounded-xl">
                     <span className="font-bold text-gray-700">{bulanNama} {tahun}</span>
                     </div>
