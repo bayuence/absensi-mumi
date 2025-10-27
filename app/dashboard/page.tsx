@@ -1,12 +1,11 @@
-    "use client";
+"use client";
 
-    import { useEffect, useState } from "react";
-    import { createClient } from "@supabase/supabase-js";
-    import Navbar from "@/components/Navbar";
-    import moment from "moment";
-    import "moment/locale/id";
-
-    const supabase = createClient(
+import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+import Navbar from "@/components/Navbar";
+import ProfileModal from "./ProfileModal";
+import moment from "moment";
+import "moment/locale/id";    const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
@@ -458,106 +457,15 @@
                 </p>
                 </div>
             </div>
-            </div>
+        </div>
         </footer>
 
-        {/* Modal Profil User */}
+        {/* Profile Modal */}
         {showModal && selectedUser && (
-          <div 
-            className="fixed inset-0 bg-black/30 z-[9999] flex items-center justify-center p-4" 
-            onClick={() => setShowModal(false)}
-          >
-            <div 
-              className="backdrop-blur-3xl rounded-3xl max-w-md w-full overflow-hidden transform transition-all animate-fadeIn relative"
-              style={{
-                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.05) 100%)',
-                boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.15) inset',
-                backdropFilter: 'blur(50px) saturate(200%)',
-                WebkitBackdropFilter: 'blur(50px) saturate(200%)',
-                border: '1px solid rgba(255, 255, 255, 0.15)'
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Cover Photo */}
-              <div className="relative h-32 bg-gradient-to-r from-blue-600 to-purple-600">
-                {selectedUser.foto_sampul ? (
-                  <img 
-                    src={selectedUser.foto_sampul} 
-                    alt="Cover"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-r from-blue-600 to-purple-600"></div>
-                )}
-                
-                {/* Close Button */}
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="absolute top-3 right-3 bg-white/20 backdrop-blur-md hover:bg-white/30 text-gray-900 w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-all border border-white/20 font-bold"
-                >
-                  ✕
-                </button>
-
-                {/* Profile Photo - Overlap */}
-                <div className="absolute left-1/2 -translate-x-1/2 -bottom-12 z-10">
-                  <div className="w-24 h-24 bg-white/15 backdrop-blur-md rounded-full flex items-center justify-center shadow-xl overflow-hidden border-4 border-white/25">
-                    {selectedUser.foto_profil ? (
-                      <img 
-                        src={selectedUser.foto_profil} 
-                        alt={selectedUser.nama}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-4xl font-bold text-gray-900 drop-shadow-lg">
-                        {selectedUser.nama.charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Profile Info */}
-              <div className="pt-16 pb-6 px-6 text-center bg-white/5 backdrop-blur-sm">
-                <h2 className="text-2xl font-bold text-gray-900 drop-shadow-md mb-1">
-                  {selectedUser.nama}
-                </h2>
-              </div>
-
-              {/* Profile Details */}
-              <div className="px-6 pb-6 space-y-3 bg-white/0">
-                {/* Asal */}
-                <div className="flex items-center space-x-3 p-4 bg-white/15 backdrop-blur-md rounded-2xl border border-white/20 shadow-sm">
-                  <span className="text-2xl">📍</span>
-                  <div className="flex-1">
-                    <p className="text-xs text-gray-800 font-bold uppercase tracking-wide">Asal</p>
-                    <p className="text-base text-gray-900 font-semibold">{selectedUser.asal}</p>
-                  </div>
-                </div>
-
-                {/* Status */}
-                <div className="flex items-center space-x-3 p-4 bg-white/15 backdrop-blur-md rounded-2xl border border-white/20 shadow-sm">
-                  <span className="text-2xl">
-                    {selectedUser.status === 'pelajar' ? '🎓' : '👨‍💼'}
-                  </span>
-                  <div className="flex-1">
-                    <p className="text-xs text-gray-800 font-bold uppercase tracking-wide">Status</p>
-                    <p className="text-base text-gray-900 font-semibold capitalize">{selectedUser.status}</p>
-                  </div>
-                </div>
-
-                {/* Keterangan */}
-                {selectedUser.keterangan && (
-                  <div className="flex items-start space-x-3 p-4 bg-white/15 backdrop-blur-md rounded-2xl border border-white/20 shadow-sm">
-                    <span className="text-2xl">💬</span>
-                    <div className="flex-1">
-                      <p className="text-xs text-gray-800 font-bold uppercase tracking-wide">Keterangan</p>
-                      <p className="text-sm text-gray-900 font-medium leading-relaxed">{selectedUser.keterangan}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <ProfileModal 
+            user={selectedUser} 
+            onClose={() => setShowModal(false)} 
+          />
         )}
         </>
     );
