@@ -1,8 +1,28 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
 
 export default function Home() {
+  const [particles, setParticles] = useState<Array<{
+    id: number;
+    left: number;
+    top: number;
+    delay: number;
+    duration: number;
+  }>>([]);
+
+  // Generate particles only on client-side to avoid hydration mismatch
+  useEffect(() => {
+    setParticles([...Array(20)].map((_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      top: Math.random() * 100,
+      delay: Math.random() * 5,
+      duration: 3 + Math.random() * 4
+    })));
+  }, []);
+
   return (
     <>
       <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 p-8">
@@ -15,15 +35,15 @@ export default function Home() {
 
         {/* Floating particles */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(20)].map((_, i) => (
+          {particles.map((particle) => (
             <div
-              key={i}
+              key={particle.id}
               className="absolute w-2 h-2 bg-white rounded-full opacity-20 animate-float"
               style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 5}s`,
-                animationDuration: `${3 + Math.random() * 4}s`
+                left: `${particle.left}%`,
+                top: `${particle.top}%`,
+                animationDelay: `${particle.delay}s`,
+                animationDuration: `${particle.duration}s`
               }}
             />
           ))}
@@ -34,16 +54,24 @@ export default function Home() {
           {/* Glowing card background */}
           <div className="absolute inset-0 bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl"></div>
           
-          <div className="relative p-12">
+          <div className="relative p-8 md:p-12">
+            {/* Logo LDII */}
+            <div className="flex justify-center mb-6 md:mb-8">
+              <div className="relative">
+                {/* Glow effect behind logo */}
+                <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 rounded-full blur-2xl opacity-30 animate-pulse"></div>
+                <img 
+                  src="/logo-ldii.png" 
+                  alt="Logo LDII" 
+                  className="relative w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 object-contain drop-shadow-2xl transform hover:rotate-6 transition-transform duration-500"
+                />
+              </div>
+            </div>
+            
             {/* Animated title */}
-            <h1 className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 mb-6 animate-pulse">
+            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 mb-6 md:mb-8 animate-pulse px-6 max-w-5xl mx-auto leading-tight">
               Selamat Datang di Website Presensi MUMI 👋
             </h1>
-            
-            {/* Subtitle with typing animation effect */}
-            <p className="mb-8 text-xl text-gray-200 opacity-90 font-light tracking-wide">
-              Silakan login untuk melanjutkan
-            </p>
             
             {/* Animated login button */}
             <Link
@@ -69,6 +97,24 @@ export default function Home() {
                 </svg>
               </span>
             </Link>
+            
+            {/* Subtitle below button */}
+            <p className="mt-4 text-sm sm:text-base text-gray-300 opacity-70 font-light tracking-wide px-4">
+              Silakan login untuk melanjutkan
+            </p>
+            
+            {/* Developer credit */}
+            <p className="mt-3 text-xs sm:text-sm text-gray-400 opacity-60 font-light">
+              Developed by{" "}
+              <a 
+                href="https://www.instagram.com/bayuence_?igsh=c2NxZ2swM3Q3aTUy" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-cyan-400 hover:text-pink-400 transition-colors duration-300 font-medium underline decoration-dotted underline-offset-2 hover:decoration-solid"
+              >
+                ence
+              </a>
+            </p>
           </div>
         </div>
       </main>

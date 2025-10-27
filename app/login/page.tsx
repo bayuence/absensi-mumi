@@ -228,8 +228,12 @@
         <div className="max-w-md w-full space-y-8">
             {/* Header */}
             <div className="text-center">
-            <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-white text-3xl">🕌</span>
+            <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg border border-gray-200">
+                <img 
+                src="/logo-ldii.png" 
+                alt="Logo LDII" 
+                className="w-16 h-16 object-contain"
+                />
             </div>
             <h2 className="text-3xl font-extrabold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 MUMI BP Kulon

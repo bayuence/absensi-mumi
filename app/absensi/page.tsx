@@ -122,6 +122,7 @@
             nama: user.nama,
             tanggal: tanggal,
             status: "TIDAK_HADIR",
+            foto_profil: user.foto_profil || null,
             }));
 
         if (ketidakhadiranRecords.length > 0) {
@@ -240,6 +241,7 @@
             nama: user.nama,
             tanggal: today,
             status: "HADIR",
+            foto_profil: user.foto_profil || null,
         },
         ]);
 
@@ -426,8 +428,16 @@
                             }}
                             >
                             <div className="flex items-center space-x-4">
-                                <div className="w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
-                                {(item.nama || "?").charAt(0).toUpperCase()}
+                                <div className="w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg overflow-hidden">
+                                {item.foto_profil ? (
+                                    <img 
+                                    src={item.foto_profil} 
+                                    alt={item.nama}
+                                    className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <span>{(item.nama || "?").charAt(0).toUpperCase()}</span>
+                                )}
                                 </div>
                                 <div>
                                 <div className="font-bold text-gray-800 text-lg">

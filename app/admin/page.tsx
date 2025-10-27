@@ -347,8 +347,16 @@
                             <div className="flex justify-between items-start">
                                 <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <div className="w-12 h-12 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                                    {absen.nama ? absen.nama.charAt(0).toUpperCase() : '?'}
+                                    <div className="w-12 h-12 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center text-white font-bold text-lg overflow-hidden">
+                                    {absen.foto_profil ? (
+                                        <img 
+                                        src={absen.foto_profil} 
+                                        alt={absen.nama}
+                                        className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <span>{absen.nama ? absen.nama.charAt(0).toUpperCase() : '?'}</span>
+                                    )}
                                     </div>
                                     <div>
                                     <h3 className="text-lg font-bold text-slate-800">{absen.nama || 'Nama tidak tersedia'}</h3>
@@ -520,8 +528,16 @@
                             <div className="flex justify-between items-start">
                             <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-4">
-                                <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                                    {u.nama.charAt(0).toUpperCase()}
+                                <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg overflow-hidden">
+                                    {u.foto_profil ? (
+                                    <img 
+                                        src={u.foto_profil} 
+                                        alt={u.nama}
+                                        className="w-full h-full object-cover"
+                                    />
+                                    ) : (
+                                    <span>{u.nama.charAt(0).toUpperCase()}</span>
+                                    )}
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-bold text-slate-800">{u.nama}</h3>

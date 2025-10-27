@@ -19,6 +19,8 @@
     const [materiTerakhir, setMateriTerakhir] = useState<any>(null);
     const [userList, setUserList] = useState<any[]>([]);
     const [error, setError] = useState("");
+    const [selectedUser, setSelectedUser] = useState<any>(null);
+    const [showModal, setShowModal] = useState(false);
 
     const today = moment().format("YYYY-MM-DD");
 
@@ -115,8 +117,12 @@
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 opacity-5"></div>
                 <div className="relative">
                 <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                    <span className="text-white text-2xl">🕌</span>
+                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg border border-gray-200">
+                    <img 
+                        src="/logo-ldii.png" 
+                        alt="Logo LDII" 
+                        className="w-10 h-10 object-contain"
+                    />
                     </div>
                     <div>
                     <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -299,16 +305,28 @@
                     {sortedUsers.map((u, index) => (
                     <div 
                         key={u.username} 
-                        className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200 hover:shadow-md hover:scale-105 transition-all duration-200"
+                        onClick={() => {
+                          setSelectedUser(u);
+                          setShowModal(true);
+                        }}
+                        className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200 hover:shadow-md hover:scale-105 transition-all duration-200 cursor-pointer"
                         style={{
                         animationDelay: `${index * 50}ms`
                         }}
                     >
                         <div className="flex items-start space-x-3">
-                        <div className="w-10 h-10 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                        <div className="w-10 h-10 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                            {u.foto_profil ? (
+                            <img 
+                                src={u.foto_profil} 
+                                alt={u.nama}
+                                className="w-full h-full object-cover"
+                            />
+                            ) : (
                             <span className="text-white font-bold text-sm">
-                            {u.nama.charAt(0).toUpperCase()}
+                                {u.nama.charAt(0).toUpperCase()}
                             </span>
+                            )}
                         </div>
                         <div className="flex-1 min-w-0">
                             <h3 className="font-bold text-gray-900 truncate">{u.nama}</h3>
@@ -351,8 +369,12 @@
             <div className="text-center space-y-8">
                 {/* Logo dan Title */}
                 <div className="flex flex-col items-center space-y-4">
-                <div className="w-16 h-16 bg-gradient-to-r from-blue-400 to-purple-500 rounded-2xl flex items-center justify-center shadow-2xl">
-                    <span className="text-white text-3xl">🕌</span>
+                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-2xl border border-gray-200">
+                    <img 
+                    src="/logo-ldii.png" 
+                    alt="Logo LDII" 
+                    className="w-14 h-14 object-contain"
+                    />
                 </div>
                 <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                     MUMI BP Kulon
@@ -438,6 +460,105 @@
             </div>
             </div>
         </footer>
+
+        {/* Modal Profil User */}
+        {showModal && selectedUser && (
+          <div 
+            className="fixed inset-0 bg-black/30 z-[9999] flex items-center justify-center p-4" 
+            onClick={() => setShowModal(false)}
+          >
+            <div 
+              className="backdrop-blur-3xl rounded-3xl max-w-md w-full overflow-hidden transform transition-all animate-fadeIn relative"
+              style={{
+                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.05) 100%)',
+                boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.15) inset',
+                backdropFilter: 'blur(50px) saturate(200%)',
+                WebkitBackdropFilter: 'blur(50px) saturate(200%)',
+                border: '1px solid rgba(255, 255, 255, 0.15)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Cover Photo */}
+              <div className="relative h-32 bg-gradient-to-r from-blue-600 to-purple-600">
+                {selectedUser.foto_sampul ? (
+                  <img 
+                    src={selectedUser.foto_sampul} 
+                    alt="Cover"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-r from-blue-600 to-purple-600"></div>
+                )}
+                
+                {/* Close Button */}
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="absolute top-3 right-3 bg-white/20 backdrop-blur-md hover:bg-white/30 text-gray-900 w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-all border border-white/20 font-bold"
+                >
+                  ✕
+                </button>
+
+                {/* Profile Photo - Overlap */}
+                <div className="absolute left-1/2 -translate-x-1/2 -bottom-12 z-10">
+                  <div className="w-24 h-24 bg-white/15 backdrop-blur-md rounded-full flex items-center justify-center shadow-xl overflow-hidden border-4 border-white/25">
+                    {selectedUser.foto_profil ? (
+                      <img 
+                        src={selectedUser.foto_profil} 
+                        alt={selectedUser.nama}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-4xl font-bold text-gray-900 drop-shadow-lg">
+                        {selectedUser.nama.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Profile Info */}
+              <div className="pt-16 pb-6 px-6 text-center bg-white/5 backdrop-blur-sm">
+                <h2 className="text-2xl font-bold text-gray-900 drop-shadow-md mb-1">
+                  {selectedUser.nama}
+                </h2>
+              </div>
+
+              {/* Profile Details */}
+              <div className="px-6 pb-6 space-y-3 bg-white/0">
+                {/* Asal */}
+                <div className="flex items-center space-x-3 p-4 bg-white/15 backdrop-blur-md rounded-2xl border border-white/20 shadow-sm">
+                  <span className="text-2xl">📍</span>
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-800 font-bold uppercase tracking-wide">Asal</p>
+                    <p className="text-base text-gray-900 font-semibold">{selectedUser.asal}</p>
+                  </div>
+                </div>
+
+                {/* Status */}
+                <div className="flex items-center space-x-3 p-4 bg-white/15 backdrop-blur-md rounded-2xl border border-white/20 shadow-sm">
+                  <span className="text-2xl">
+                    {selectedUser.status === 'pelajar' ? '🎓' : '👨‍💼'}
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-800 font-bold uppercase tracking-wide">Status</p>
+                    <p className="text-base text-gray-900 font-semibold capitalize">{selectedUser.status}</p>
+                  </div>
+                </div>
+
+                {/* Keterangan */}
+                {selectedUser.keterangan && (
+                  <div className="flex items-start space-x-3 p-4 bg-white/15 backdrop-blur-md rounded-2xl border border-white/20 shadow-sm">
+                    <span className="text-2xl">💬</span>
+                    <div className="flex-1">
+                      <p className="text-xs text-gray-800 font-bold uppercase tracking-wide">Keterangan</p>
+                      <p className="text-sm text-gray-900 font-medium leading-relaxed">{selectedUser.keterangan}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         </>
     );
     }

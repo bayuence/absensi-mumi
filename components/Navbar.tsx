@@ -3,12 +3,19 @@
     import Link from "next/link";
     import { useRouter } from "next/navigation";
     import { useEffect, useState } from "react";
+    import { createClient } from '@supabase/supabase-js';
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
 
     export default function Navbar() {
     const router = useRouter();
     const [username, setUsername] = useState("");
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [currentPath, setCurrentPath] = useState("");
+    const [userPhoto, setUserPhoto] = useState<string | null>(null);
 
     useEffect(() => {
         const user = localStorage.getItem("loggedUser");
@@ -16,11 +23,28 @@
         router.push("/login");
         } else {
         setUsername(user);
+        fetchUserPhoto(user);
         }
         
         // Get current path for active link highlighting
         setCurrentPath(window.location.pathname);
     }, [router]);
+
+    const fetchUserPhoto = async (username: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('users')
+                .select('foto_profil')
+                .eq('username', username)
+                .single();
+            
+            if (!error && data?.foto_profil) {
+                setUserPhoto(data.foto_profil);
+            }
+        } catch (error) {
+            console.error('Error fetching user photo:', error);
+        }
+    };
 
     const handleLogout = () => {
         localStorage.clear();
@@ -35,6 +59,7 @@
         { href: "/dashboard", label: "Dashboard", icon: "🏠" },
         { href: "/absensi", label: "Presensi", icon: "✅" },
         { href: "/laporan", label: "Laporan", icon: "📊" },
+        { href: "/profil", label: "Profil", icon: "👤" },
         ...(username === "admin" ? [{ href: "/admin", label: "Admin", icon: "⚙️" }] : [])
     ];
 
@@ -46,8 +71,12 @@
             <div className="flex justify-between items-center h-16">
                 {/* Logo/Brand */}
                 <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                    <span className="text-white text-lg font-bold">🕌</span>
+                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg border border-gray-200">
+                    <img 
+                    src="/logo-ldii.png" 
+                    alt="Logo LDII" 
+                    className="w-8 h-8 object-contain"
+                    />
                 </div>
                 <div className="hidden sm:block">
                     <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -86,18 +115,25 @@
 
                 {/* User Profile & Actions */}
                 <div className="flex items-center space-x-4">
-                {/* User Profile */}
-                <div className="hidden sm:flex items-center space-x-3 bg-gray-50 rounded-xl px-4 py-2 border border-gray-200">
-                    <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
-                    <span className="text-white text-sm font-bold">
-                        {username.charAt(0).toUpperCase()}
-                    </span>
+                {/* User Profile - Link to Profile Page */}
+                <Link 
+                    href="/profil"
+                    className="hidden sm:flex items-center space-x-3 bg-gray-50 hover:bg-gray-100 rounded-xl px-4 py-2 border border-gray-200 transition-all duration-300 hover:shadow-md cursor-pointer"
+                >
+                    <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center overflow-hidden">
+                    {userPhoto ? (
+                        <img src={userPhoto} alt={username} className="w-full h-full object-cover" />
+                    ) : (
+                        <span className="text-white text-sm font-bold">
+                            {username.charAt(0).toUpperCase()}
+                        </span>
+                    )}
                     </div>
                     <div className="flex items-center space-x-2">
                     <span className="text-gray-600 text-sm">👋</span>
                     <span className="text-gray-800 font-medium text-sm">{username}</span>
                     </div>
-                </div>
+                </Link>
 
                 {/* Logout Button */}
                 <button
@@ -128,20 +164,28 @@
             <div className="bg-white border-t border-gray-100 shadow-lg">
                 <div className="px-4 py-4 space-y-2">
                 {/* Mobile User Profile */}
-                <div className="flex items-center space-x-3 bg-gray-50 rounded-xl px-4 py-3 mb-4 border border-gray-200">
-                    <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
-                    <span className="text-white font-bold">
-                        {username.charAt(0).toUpperCase()}
-                    </span>
+                <Link 
+                    href="/profil"
+                    onClick={() => setIsMenuOpen(false)}
+                    className="flex items-center space-x-3 bg-gray-50 hover:bg-gray-100 rounded-xl px-4 py-3 mb-4 border border-gray-200 transition-all"
+                >
+                    <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center overflow-hidden">
+                    {userPhoto ? (
+                        <img src={userPhoto} alt={username} className="w-full h-full object-cover" />
+                    ) : (
+                        <span className="text-white font-bold">
+                            {username.charAt(0).toUpperCase()}
+                        </span>
+                    )}
                     </div>
                     <div>
                     <div className="flex items-center space-x-2">
                         <span className="text-gray-600">👋</span>
                         <span className="text-gray-800 font-medium">{username}</span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">Selamat datang kembali!</p>
+                    <p className="text-xs text-gray-500 mt-1">Lihat profil</p>
                     </div>
-                </div>
+                </Link>
 
                 {/* Mobile Navigation Links */}
                 {navLinks.map((link, index) => (
