@@ -5,6 +5,7 @@
     import moment from "moment";
     import "moment/locale/id";
     import Navbar from "@/components/Navbar";
+    import { exportRekapToPDF } from "./exportPDF";
 
     const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,6 +27,11 @@
     const [today, setToday] = useState<string>("");
 
     const bulanNama = bulan !== null ? moment().month(bulan).format("MMMM") : "";
+
+    // Fungsi Export PDF
+    const handleExportPDF = () => {
+        exportRekapToPDF(rekap, bulanNama, tahun!);
+    };
 
     // Initialize date values on client side only
     useEffect(() => {
@@ -193,7 +199,15 @@
             };
         });
 
-        setRekap(hasil || []);
+        // Sort by nama A-Z dan uppercase semua nama
+        const sortedHasil = (hasil || [])
+            .map(item => ({
+            ...item,
+            nama: item.nama.toUpperCase()
+            }))
+            .sort((a, b) => a.nama.localeCompare(b.nama));
+
+        setRekap(sortedHasil);
         }
 
         fetchRekap();
@@ -480,13 +494,24 @@
             {/* Monthly Recap */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                 <div className="bg-gradient-to-r from-rose-500 to-pink-500 p-4">
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                    <span className="text-white text-xl">📊</span>
+                        <span className="text-white text-xl">📊</span>
                     </div>
                     <h2 className="text-xl font-bold text-white">
-                    Rekap Kehadiran Bulan {bulanNama} {tahun}
+                        Rekap Kehadiran Bulan {bulanNama} {tahun}
                     </h2>
+                    </div>
+                    <button
+                    onClick={handleExportPDF}
+                    className="flex items-center space-x-2 bg-white hover:bg-gray-100 text-rose-600 px-4 py-2 rounded-xl font-medium transition-all duration-300 hover:scale-105 shadow-lg"
+                    >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>Export PDF</span>
+                    </button>
                 </div>
                 </div>
                 <div className="p-6 space-y-6">
