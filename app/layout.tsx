@@ -1,59 +1,67 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "GENERUS LDII BPKULON",
-  description: "Sistem Presensi Generus LDII BPKULON",
-  manifest: "/manifest.json",
-  icons: {
-    icon: [
-      { url: "/logo-ldii.png", sizes: "any" },
-      { url: "/logo-ldii.png", sizes: "192x192", type: "image/png" },
-      { url: "/logo-ldii.png", sizes: "512x512", type: "image/png" },
+  title: {
+    default: "Sistem Presensi Generus LDII BPKULON",
+    template: "%s | Presensi Generus LDII BPKULON",
+  },
+  description:
+    "Sistem Presensi Generus LDII BPKULON berbasis website untuk mempermudah pengurus dalam pencatatan absensi kegiatan mengaji, pembinaan, dan aktivitas generus lainnya.",
+  keywords: [
+    "Presensi Generus",
+    "Presensi LDII",
+    "Absensi Remaja LDII",
+    "Remaja LDII BPKULON",
+    "Presensi Online LDII",
+    "Absensi Mengaji LDII",
+  ],
+  authors: [{ name: "Bayu Ence", url: "https://www.instagram.com/bayuence_" }],
+  creator: "Bayu Ence",
+  publisher: "Remaja LDII BPKULON",
+  metadataBase: new URL("https://presensimumi.vercel.app"),
+  openGraph: {
+    type: "website",
+    title: "Sistem Presensi Generus LDII BPKULON",
+    description:
+      "Platform presensi digital untuk generus LDII BPKULON Gresik – hadir lebih mudah, data tersimpan aman, rekap otomatis.",
+    url: "https://presensimumi.vercel.app",
+    siteName: "Presensi Generus LDII BPKULON",
+    images: [
+      {
+        url: "/og-image.jpg", // bikin nanti kalau belum ada
+        width: 1200,
+        height: 630,
+        alt: "Presensi Generus LDII BPKULON",
+      },
     ],
-    apple: [{ url: "/logo-ldii.png", sizes: "180x180", type: "image/png" }],
   },
-
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "GENERUS LDII BPKULON",
+  twitter: {
+    card: "summary_large_image",
+    title: "Sistem Presensi Generus LDII BPKULON",
+    description:
+      "Absensi generus berbasis web — mempermudah rekap kehadiran kegiatan mengaji & pembinaan.",
+    images: ["/og-image.jpg"],
+    creator: "@bayuence_",
   },
-
-  // 🟢 Tambahkan ini untuk Google Search Console
-  verification: {
-    google: "6kO-dYQCtOZ7n1n2a3sCSmpHGQrCvmyNughcX793fYk",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="id">
-      <head>
-        <link rel="icon" href="/logo-ldii.png" sizes="any" />
-        <link rel="apple-touch-icon" href="/logo-ldii.png" />
-        <meta name="theme-color" content="#22c55e" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="LDII BPKULON" />
-      </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className="bg-gray-900 text-gray-100 antialiased">
         {children}
       </body>
     </html>
