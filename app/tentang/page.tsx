@@ -8,8 +8,8 @@ export default function TentangPage() {
       <p>
         Sistem Presensi Generus LDII BPKULON adalah sebuah platform presensi
         berbasis website yang digunakan untuk mencatat kehadiran generus dalam
-        kegiatan pembinaan, mengaji, dan kegiatan lainnya di lingkungan Remaja LDII
-        BPKULON, Kecamatan Gresik, Kabupaten Gresik, Jawa Timur.
+        kegiatan pembinaan, mengaji, dan kegiatan lainnya di lingkungan Remaja
+        LDII BPKULON, Kecamatan Gresik, Kabupaten Gresik, Jawa Timur.
       </p>
 
       <h2 className="text-2xl font-semibold">Tujuan Sistem Presensi</h2>
@@ -37,8 +37,36 @@ export default function TentangPage() {
 
       <h2 className="text-2xl font-semibold">Teknologi</h2>
       <p>
-        Sistem ini dibangun dengan Next.js, Supabase, TailwindCSS dan di-deploy
-        menggunakan Vercel.
+        Sistem ini dibangun dengan Next.js, Supabase, TailwindCSS dan
+        di-deploy menggunakan Vercel.
+      </p>
+
+      {/* Bagian Kredit Pengembang */}
+      <h2 className="text-2xl font-semibold">Pengembang</h2>
+      <p className="mt-1 text-sm text-gray-600 opacity-90 font-light">
+        Sistem Presensi Generus LDII BPKULON ini dikembangkan oleh{" "}
+        <a
+          href="https://www.instagram.com/bayuence_?igsh=c2NxZ2swM3Q3aTUy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-cyan-500 hover:text-pink-500 transition-colors duration-300 font-medium underline decoration-dotted underline-offset-2 hover:decoration-solid"
+        >
+          Bayu Nurcahyo (ence)
+        </a>
+        , salah satu generus LDII BPKULON yang berkontribusi dalam digitalisasi
+        sistem absensi dan pengelolaan data kegiatan generus.
+      </p>
+
+      <p className="mt-6 text-xs sm:text-sm text-gray-400 opacity-60 font-light">
+        Developed by{" "}
+        <a
+          href="https://www.instagram.com/bayuence_?igsh=c2NxZ2swM3Q3aTUy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-cyan-400 hover:text-pink-400 transition-colors duration-300 font-medium underline decoration-dotted underline-offset-2 hover:decoration-solid"
+        >
+          ence
+        </a>
       </p>
     </main>
   );
