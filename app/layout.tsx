@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://presensimumi.vercel.app"),
   title: {
     default: "Sistem Presensi Generus LDII BPKULON",
     template: "%s | Presensi Generus LDII BPKULON",
@@ -26,7 +27,16 @@ export const metadata: Metadata = {
   authors: [{ name: "Bayu Ence", url: "https://www.instagram.com/bayuence_" }],
   creator: "Bayu Ence",
   publisher: "Remaja LDII BPKULON",
-  metadataBase: new URL("https://presensimumi.vercel.app"),
+
+  // --- PENGATURAN IKON (UPDATED) ---
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      // Baris di bawah ini yang akan memperbaiki tampilan di Google Search
+      { url: "/logo-ldii.png", type: "image/png" }, 
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 
   openGraph: {
     type: "website",
@@ -57,11 +67,6 @@ export const metadata: Metadata = {
   },
 
   robots: { index: true, follow: true },
-
-  icons: {
-    icon: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
-  },
 };
 
 export default function RootLayout({
