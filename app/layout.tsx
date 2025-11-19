@@ -10,7 +10,12 @@ export const metadata: Metadata = {
     "Platform presensi digital untuk generus LDII BPKULON Gresik – hadir lebih mudah, data tersimpan aman, rekap otomatis.",
   keywords: [
     "Presensi Generus",
+    "Presensi Generus Gresik",
+    "Presensi Generus BPKULON",
+    "Presensi Generus bpkulon",
+    "Presensi Generus LDII",
     "Presensi LDII",
+    "Presensi LDII Gresik",
     "Absensi Remaja LDII",
     "Remaja LDII BPKULON",
     "Presensi Online LDII",
