@@ -9,8 +9,8 @@ export const metadata: Metadata = {
   
   // Pengaturan Judul: Tidak kapital semua agar terlihat profesional di Google
   title: {
-    default: "Sistem Presensi MUMI - Generus LDII BP Kulon",
-    template: "%s | Presensi MUMI",
+    default: "Sistem Presensi Generus LDII BPKulon",
+    template: "%s | Presensi Generus LDII BPKulon",
   },
   
   // Deskripsi yang akan muncul di bawah judul di Google
@@ -19,7 +19,15 @@ export const metadata: Metadata = {
   
   keywords: [
     "Presensi MUMI",
+    "Presensi MUMI BPkulon",
+    "Presensi MUMI Gresik",
+    "Presensi Generus LDII Gresik",
+    "Presensi Generus Gresik",
+    "LDII GRESIK",
+    "LDII gresik",
+    "LDII BPkulon",
     "Presensi Generus LDII",
+    "LDII",
     "LDII BPKULON",
     "Absensi Digital LDII",
     "Generus Gresik",
