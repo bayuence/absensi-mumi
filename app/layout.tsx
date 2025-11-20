@@ -48,10 +48,10 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: baseUrl,
-    siteName: "Presensi MUMI", // Memberitahu Google nama situs ini Presensi MUMI
-    title: "Sistem Presensi MUMI - Generus LDII BP Kulon",
+    siteName: "Presensi Generus LDII BP Kulon", // Memberitahu Google nama situs ini Presensi MUMI
+    title: "Sistem Presensi Generus LDII BP Kulon",
     description:
-      "Sistem presensi digital resmi Generus LDII BPKULON Gresik. Mudah, Cepat, Aman.",
+      "Sistem presensi digital resmi Generus LDII BPKULON Gresik. Mudah, Cepat, Aman. Developed by ence",
     // Catatan: Next.js akan otomatis mencari file 'opengraph-image.png' di folder app
     // Jadi kita tidak perlu menulis url gambar manual di sini.
   },
@@ -61,7 +61,7 @@ export const metadata: Metadata = {
     site: "@bayuence_",
     title: "Sistem Presensi MUMI - Generus LDII BP Kulon",
     description:
-      "Sistem presensi digital resmi Generus LDII BPKULON Gresik. Mudah, Cepat, Aman.",
+      "Sistem presensi digital resmi Generus LDII BPKULON Gresik. Mudah, Cepat, Aman. Developed by ence",
   },
 
   robots: { index: true, follow: true },
