@@ -1,69 +1,59 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+// URL website kamu (Penting untuk SEO)
+const baseUrl = "https://presensimumi.vercel.app";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://presensimumi.vercel.app"),
+  metadataBase: new URL(baseUrl),
+  
+  // Pengaturan Judul: Tidak kapital semua agar terlihat profesional di Google
   title: {
-    default: "Sistem Presensi Generus LDII BPKULON",
-    template: "%s | Presensi Generus LDII BPKULON",
+    default: "Sistem Presensi MUMI - Generus LDII BP Kulon",
+    template: "%s | Presensi MUMI",
   },
+  
+  // Deskripsi yang akan muncul di bawah judul di Google
   description:
-    "Platform presensi digital untuk generus LDII BPKULON Gresik – hadir lebih mudah, data tersimpan aman, rekap otomatis.",
+    "Sistem presensi digital resmi Generus LDII BPKULON Gresik. Login untuk absensi kegiatan, rekap data otomatis, dan monitoring kehadiran yang aman. Developed by bayuence",
+  
   keywords: [
-    "Presensi Generus",
-    "Presensi Generus Gresik",
-    "Presensi Generus BPKULON",
-    "Presensi Generus bpkulon",
+    "Presensi MUMI",
     "Presensi Generus LDII",
-    "Presensi LDII",
-    "Presensi LDII Gresik",
-    "Absensi Remaja LDII",
-    "Remaja LDII BPKULON",
-    "Presensi Online LDII",
-    "Absensi Mengaji LDII",
-    "Kegiatan Pembinaan Generus",
-    "LDII BPKULON Gresik",
+    "LDII BPKULON",
+    "Absensi Digital LDII",
+    "Generus Gresik",
+    "Sistem Informasi LDII",
   ],
+  
   authors: [{ name: "Bayu Ence", url: "https://www.instagram.com/bayuence_" }],
   creator: "Bayu Ence",
-  publisher: "Remaja LDII BPKULON",
+  publisher: "Generus LDII BPKULON",
 
-  // --- PENGATURAN IKON (UPDATED) ---
   icons: {
-    icon: [
-      { url: "/favicon.ico" },
-      // Baris di bawah ini yang akan memperbaiki tampilan di Google Search
-      { url: "/logo-ldii.png", type: "image/png" }, 
-    ],
+    icon: "/favicon.ico",
+    // Jika punya logo khusus format PNG, pastikan ada di folder public dan uncomment baris bawah:
+    // icon: [{ url: "/favicon.ico" }, { url: "/logo.png", type: "image/png" }],
     apple: "/apple-touch-icon.png",
   },
 
   openGraph: {
     type: "website",
-    url: "https://presensimumi.vercel.app",
-    siteName: "Presensi Generus LDII BPKULON",
-    title: "Sistem Presensi Generus LDII BPKULON",
+    url: baseUrl,
+    siteName: "Presensi MUMI", // Memberitahu Google nama situs ini Presensi MUMI
+    title: "Sistem Presensi MUMI - Generus LDII BP Kulon",
     description:
-      "Platform presensi digital untuk generus LDII BPKULON Gresik – hadir lebih mudah, data tersimpan aman, rekap otomatis.",
-    images: [
-      {
-        url: "https://opengraph.b-cdn.net/production/images/d9ac13e3-5af8-4e03-b301-ea82eb3e5e7e.png?token=nO6JTADnTfHs8PEp0ap1wYef73k-gOul6PSEQJ_kBGQ&height=927&width=952&expires=33299476635",
-        width: 1200,
-        height: 630,
-        alt: "Presensi Generus LDII BPKULON",
-      },
-    ],
+      "Sistem presensi digital resmi Generus LDII BPKULON Gresik. Mudah, Cepat, Aman.",
+    // Catatan: Next.js akan otomatis mencari file 'opengraph-image.png' di folder app
+    // Jadi kita tidak perlu menulis url gambar manual di sini.
   },
 
   twitter: {
     card: "summary_large_image",
     site: "@bayuence_",
-    title: "Sistem Presensi Generus LDII BPKULON",
+    title: "Sistem Presensi MUMI - Generus LDII BP Kulon",
     description:
-      "Platform presensi digital untuk generus LDII BPKULON Gresik – hadir lebih mudah, data tersimpan aman, rekap otomatis.",
-    images: [
-      "https://opengraph.b-cdn.net/production/images/d9ac13e3-5af8-4e03-b301-ea82eb3e5e7e.png?token=nO6JTADnTfHs8PEp0ap1wYef73k-gOul6PSEQJ_kBGQ&height=927&width=952&expires=33299476635",
-    ],
+      "Sistem presensi digital resmi Generus LDII BPKULON Gresik. Mudah, Cepat, Aman.",
   },
 
   robots: { index: true, follow: true },
@@ -74,9 +64,28 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Script JSON-LD: Ini "Rahasia" agar tulisan Vercel hilang diganti nama Web
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Presensi MUMI",
+    "alternateName": ["Sistem Presensi Generus LDII", "MUMI BPKULON"],
+    "url": baseUrl,
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": `${baseUrl}/?q={search_term_string}`,
+      "query-input": "required name=search_term_string",
+    },
+  };
+
   return (
     <html lang="id">
       <body className="bg-gray-900 text-gray-100 antialiased">
+        {/* Script disisipkan di sini */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         {children}
       </body>
     </html>
