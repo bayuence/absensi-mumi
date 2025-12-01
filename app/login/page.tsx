@@ -32,6 +32,17 @@
         keterangan: ''
     });
 
+    // State untuk foto profil
+    const [fotoProfil, setFotoProfil] = useState<File | null>(null);
+    const [previewFoto, setPreviewFoto] = useState<string | null>(null);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [showPhotoModal, setShowPhotoModal] = useState(false);
+    const [zoom, setZoom] = useState(1);
+    const [position, setPosition] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const [rawPreview, setRawPreview] = useState<string | null>(null);
+
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -50,6 +61,261 @@
         [e.target.name]: e.target.value
         });
         if (error) setError('');
+    };
+
+    // Handle foto profil upload - Buka modal untuk crop
+    const handleFotoProfilChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Reset input
+        e.target.value = '';
+
+        // Prevent multiple calls
+        if (loading || showPhotoModal) return;
+
+        // Validasi tipe file
+        if (!file.type.startsWith('image/')) {
+            setError('File harus berupa gambar');
+            return;
+        }
+
+        // Create preview dan buka modal
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setRawPreview(reader.result as string);
+            setSelectedFile(file);
+            setShowPhotoModal(true);
+            if (error) setError('');
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Handle crop dan konfirmasi foto
+    const handleConfirmPhoto = async () => {
+        if (!selectedFile || !rawPreview || loading) return;
+
+        setLoading(true);
+
+        try {
+            // Crop image sesuai preview
+            const croppedBlob = await cropProfileImage();
+            if (!croppedBlob) {
+                setError('Gagal memproses foto');
+                setLoading(false);
+                return;
+            }
+
+            // Kompresi hasil crop
+            const compressedBlob = await compressImage(croppedBlob);
+            const compressedFile = new File([compressedBlob], selectedFile.name, { type: 'image/jpeg' });
+
+            // Set foto final
+            setFotoProfil(compressedFile);
+
+            // Create preview untuk display
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setPreviewFoto(reader.result as string);
+            };
+            reader.readAsDataURL(compressedFile);
+
+            // Reset modal state
+            setShowPhotoModal(false);
+            setRawPreview(null);
+            setSelectedFile(null);
+            setZoom(1);
+            setPosition({ x: 0, y: 0 });
+        } catch (err) {
+            console.error('Error processing photo:', err);
+            setError('Gagal memproses foto');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Handle cancel modal
+    const handleCancelPhoto = () => {
+        setShowPhotoModal(false);
+        setRawPreview(null);
+        setSelectedFile(null);
+        setZoom(1);
+        setPosition({ x: 0, y: 0 });
+        setIsDragging(false);
+    };
+
+    // Mouse/Touch handlers untuk drag
+    const handleMouseDown = (e: React.MouseEvent) => {
+        setIsDragging(true);
+        setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!isDragging) return;
+        setPosition({
+            x: e.clientX - dragStart.x,
+            y: e.clientY - dragStart.y
+        });
+    };
+
+    const handleMouseUp = () => {
+        setIsDragging(false);
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        setIsDragging(true);
+        setDragStart({ x: touch.clientX - position.x, y: touch.clientY - position.y });
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (!isDragging) return;
+        const touch = e.touches[0];
+        setPosition({
+            x: touch.clientX - dragStart.x,
+            y: touch.clientY - dragStart.y
+        });
+    };
+
+    const handleTouchEnd = () => {
+        setIsDragging(false);
+    };
+
+    const handleWheel = (e: React.WheelEvent) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        setZoom(prev => Math.min(Math.max(prev + delta, 1), 3));
+    };
+
+    // Crop image berdasarkan zoom dan position
+    const cropProfileImage = (): Promise<Blob | null> => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const outputSize = 400; // 400x400 untuk foto profil
+                const previewSize = 288; // w-72 (18rem = 288px)
+                
+                canvas.width = outputSize;
+                canvas.height = outputSize;
+                const ctx = canvas.getContext('2d');
+                
+                if (!ctx) {
+                    resolve(null);
+                    return;
+                }
+
+                // Background putih
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, outputSize, outputSize);
+
+                // Circular clip
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(outputSize / 2, outputSize / 2, outputSize / 2, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.clip();
+
+                // Scale ratio dari preview ke output
+                const ratio = outputSize / previewSize;
+
+                // Hitung ukuran gambar di preview (fit by height untuk circular)
+                const imgHeight = previewSize;
+                const imgWidth = (img.width / img.height) * imgHeight;
+
+                // Posisi center gambar
+                const centerX = previewSize / 2;
+                const centerY = previewSize / 2;
+
+                // Transform canvas context
+                ctx.translate(centerX * ratio, centerY * ratio);
+                ctx.translate(position.x * ratio, position.y * ratio);
+                ctx.scale(zoom, zoom);
+                ctx.translate(-imgWidth / 2 * ratio, -imgHeight / 2 * ratio);
+
+                // Draw image
+                ctx.drawImage(img, 0, 0, imgWidth * ratio, imgHeight * ratio);
+                
+                ctx.restore();
+
+                // Convert to blob
+                canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, 'image/jpeg', 0.95);
+            };
+            img.src = rawPreview!;
+        });
+    };
+
+    // Fungsi kompresi foto (target ~100KB)
+    const compressImage = (input: File | Blob): Promise<Blob> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    
+                    // Gunakan ukuran asli jika sudah dikrop (400x400)
+                    // Atau resize jika masih raw file
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    // Jika ukuran besar, resize dulu
+                    const maxSize = 800;
+                    if (width > maxSize || height > maxSize) {
+                        if (width > height) {
+                            height = (height * maxSize) / width;
+                            width = maxSize;
+                        } else {
+                            width = (width * maxSize) / height;
+                            height = maxSize;
+                        }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        reject(new Error('Failed to get canvas context'));
+                        return;
+                    }
+                    
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Kompresi dengan quality adaptif (target ~100KB)
+                    let quality = 0.8;
+                    const compress = () => {
+                        canvas.toBlob(
+                            (blob) => {
+                                if (!blob) {
+                                    reject(new Error('Failed to compress image'));
+                                    return;
+                                }
+                                
+                                const targetSize = 100 * 1024; // 100KB
+                                if (blob.size > targetSize && quality > 0.3) {
+                                    quality -= 0.1;
+                                    compress();
+                                } else {
+                                    console.log('Compressed size:', (blob.size / 1024).toFixed(2), 'KB');
+                                    resolve(blob);
+                                }
+                            },
+                            'image/jpeg',
+                            quality
+                        );
+                    };
+                    
+                    compress();
+                };
+                img.onerror = () => reject(new Error('Failed to load image'));
+                img.src = e.target?.result as string;
+            };
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(input);
+        });
     };
 
     const handleLogin = async (e: React.FormEvent) => {
@@ -147,6 +413,13 @@
             return;
         }
 
+        // Validasi foto profil WAJIB
+        if (!fotoProfil) {
+            setError('Foto profil wajib diupload');
+            setLoading(false);
+            return;
+        }
+
         // Validasi keterangan berdasarkan status yang dipilih
         if (!registerData.keterangan.trim()) {
             setError(`Keterangan untuk ${registerData.status} wajib diisi (contoh: nama sekolah/universitas/tempat kerja)`);
@@ -167,7 +440,33 @@
             return;
         }
 
-        // Buat user baru dengan data lengkap sesuai tabel users
+        // Upload foto profil ke Supabase Storage
+        const fileExt = fotoProfil.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `${registerData.username.trim()}/${fileName}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('profile-photos')
+            .upload(filePath, fotoProfil, {
+                cacheControl: '3600',
+                upsert: false
+            });
+
+        if (uploadError) {
+            console.error('Upload error:', uploadError);
+            setError('Gagal upload foto profil: ' + uploadError.message);
+            setLoading(false);
+            return;
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+            .from('profile-photos')
+            .getPublicUrl(filePath);
+
+        console.log('Foto profil uploaded:', publicUrl);
+
+        // Buat user baru dengan data lengkap sesuai tabel users + foto_profil
         const { data: newUser, error: insertError } = await supabase
             .from('users')
             .insert([
@@ -177,7 +476,8 @@
                 nama: registerData.nama.trim(),
                 asal: registerData.asal.trim(),
                 status: registerData.status,
-                keterangan: registerData.keterangan.trim()
+                keterangan: registerData.keterangan.trim(),
+                foto_profil: publicUrl
             }
             ])
             .select()
@@ -185,6 +485,8 @@
 
         if (insertError) {
             console.error('Insert error:', insertError);
+            // Hapus foto yang sudah diupload jika insert gagal
+            await supabase.storage.from('profile-photos').remove([filePath]);
             setError('Gagal mendaftar: ' + insertError.message);
             setLoading(false);
             return;
@@ -202,8 +504,8 @@
         }, 1500);
 
         } catch (err: any) {
-        console.error('Error register:', err);
-        setError('Terjadi kesalahan: ' + err.message);
+            console.error('Error register:', err);
+            setError('Terjadi kesalahan: ' + err.message);
         }
 
         setLoading(false);
@@ -223,6 +525,13 @@
         status: 'pelajar',
         keterangan: ''
         });
+        // Reset foto
+        setFotoProfil(null);
+        setPreviewFoto(null);
+        setRawPreview(null);
+        setSelectedFile(null);
+        setZoom(1);
+        setPosition({ x: 0, y: 0 });
     };
 
     return (
@@ -427,6 +736,78 @@
                         {registerData.status === 'bekerja' && 'Contoh: PT. ABC - Staff IT'}
                     </p>
                     </div>
+
+                    {/* Upload Foto Profil - WAJIB */}
+                    <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Foto Profil <span className="text-red-500">*</span>
+                    </label>
+                    <div className="space-y-3">
+                        {/* Preview Foto */}
+                        {previewFoto && (
+                        <div className="flex justify-center">
+                            <div className="relative">
+                            <img 
+                                src={previewFoto} 
+                                alt="Preview" 
+                                className="w-32 h-32 rounded-full object-cover border-4 border-blue-500 shadow-lg"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => {
+                                setFotoProfil(null);
+                                setPreviewFoto(null);
+                                }}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg hover:bg-red-600 transition-all"
+                                disabled={loading}
+                            >
+                                ✕
+                            </button>
+                            </div>
+                        </div>
+                        )}
+                        
+                        {/* Upload Button */}
+                        <div className="flex flex-col items-center">
+                        <label 
+                            htmlFor="foto-profil-upload"
+                            className={`cursor-pointer flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl transition-all duration-200 ${
+                            previewFoto 
+                                ? 'border-green-300 bg-green-50 hover:bg-green-100' 
+                                : 'border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-blue-400'
+                            } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            <div className="flex flex-col items-center space-y-2">
+                            <span className="text-4xl">
+                                {previewFoto ? '✅' : '📸'}
+                            </span>
+                            <span className="text-sm font-medium text-gray-700">
+                                {previewFoto ? 'Ganti Foto' : 'Klik untuk upload foto'}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                                JPG, PNG, atau format gambar lainnya
+                            </span>
+                            </div>
+                        </label>
+                        <input
+                            id="foto-profil-upload"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFotoProfilChange}
+                            className="hidden"
+                            disabled={loading}
+                        />
+                        </div>
+
+                        {/* Info Text */}
+                        <p className="text-xs text-center text-gray-600">
+                        {fotoProfil 
+                            ? '✓ Foto siap diupload' 
+                            : '⚠️ Foto profil wajib diupload sebelum mendaftar'
+                        }
+                        </p>
+                    </div>
+                    </div>
                 </div>
 
                 <div className="space-y-3">
@@ -490,6 +871,7 @@
                 ) : (
                 <>
                     <p><strong>Semua Field Wajib Diisi:</strong> Pastikan data terisi dengan benar</p>
+                    <p><strong>Foto Profil WAJIB:</strong> Upload foto Anda untuk melengkapi registrasi</p>
                     <p><strong>Keterangan:</strong> Sesuaikan dengan status yang dipilih</p>
                     <p><strong>Setelah Daftar:</strong> Otomatis login dan masuk ke dashboard</p>
                 </>
@@ -504,6 +886,121 @@
             </p>
             </div>
         </div>
+
+        {/* Modal Preview & Crop Photo */}
+        {showPhotoModal && rawPreview && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-6">
+              <div className="text-center">
+                <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+                  Atur Foto Profil
+                </h3>
+                <p className="text-gray-600 text-sm">
+                  Geser untuk memposisikan, scroll/pinch untuk zoom
+                </p>
+              </div>
+
+              {/* Preview Image with Touch Controls */}
+              <div className="flex flex-col items-center space-y-4">
+                <div 
+                  className="w-72 h-72 rounded-full overflow-hidden border-4 border-blue-500 shadow-xl relative bg-gray-100 touch-none"
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                  onWheel={handleWheel}
+                  style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+                >
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <img 
+                      src={rawPreview} 
+                      alt="Preview" 
+                      className="pointer-events-none select-none"
+                      style={{
+                        transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
+                        transformOrigin: 'center center',
+                        transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+                        maxWidth: 'none',
+                        maxHeight: 'none',
+                        height: '100%',
+                        width: 'auto'
+                      }}
+                      draggable={false}
+                    />
+                  </div>
+                </div>
+
+                {/* Zoom Controls */}
+                <div className="flex items-center space-x-4 bg-gray-50 rounded-xl px-6 py-3">
+                  <button
+                    onClick={() => setZoom(prev => Math.max(prev - 0.2, 1))}
+                    className="w-10 h-10 bg-white hover:bg-gray-100 rounded-lg shadow flex items-center justify-center text-xl font-bold text-gray-700 transition-all"
+                    type="button"
+                  >
+                    −
+                  </button>
+                  <div className="flex items-center space-x-2 min-w-[80px] justify-center">
+                    <span className="text-2xl">🔍</span>
+                    <span className="text-sm font-semibold text-gray-700">{(zoom * 100).toFixed(0)}%</span>
+                  </div>
+                  <button
+                    onClick={() => setZoom(prev => Math.min(prev + 0.2, 3))}
+                    className="w-10 h-10 bg-white hover:bg-gray-100 rounded-lg shadow flex items-center justify-center text-xl font-bold text-gray-700 transition-all"
+                    type="button"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {/* Reset Button */}
+                <button
+                  onClick={() => {
+                    setZoom(1);
+                    setPosition({ x: 0, y: 0 });
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  type="button"
+                >
+                  🔄 Reset Posisi
+                </button>
+              </div>
+
+
+
+              {/* Action Buttons */}
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleCancelPhoto}
+                  disabled={loading}
+                  className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-medium transition-all duration-300 disabled:opacity-50"
+                  type="button"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleConfirmPhoto}
+                  disabled={loading}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 flex items-center justify-center space-x-2"
+                  type="button"
+                >
+                  <span>✓</span>
+                  <span>Gunakan Foto</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         </div>
     );
     }
