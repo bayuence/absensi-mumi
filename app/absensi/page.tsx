@@ -661,26 +661,27 @@
                                         </div>
                                     </div>
                                     <div 
-                                        className="relative group cursor-pointer"
+                                        className="relative group cursor-pointer rounded-xl overflow-hidden"
                                         onClick={() => window.open(item.foto_izin, '_blank')}
                                     >
                                         <img 
                                         src={item.foto_izin} 
                                         alt="Foto Izin" 
-                                        className="w-full sm:w-48 h-48 sm:h-64 object-cover rounded-xl border-2 border-orange-200 transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl"
+                                        className="w-full sm:w-48 h-48 sm:h-64 object-cover border-2 border-orange-200 transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl rounded-xl"
                                         onError={(e) => {
                                             console.error("Image load error:", item.foto_izin);
-                                            e.currentTarget.style.display = 'none';
+                                            const parent = e.currentTarget.parentElement?.parentElement;
+                                            if (parent) parent.style.display = 'none';
                                         }}
                                         />
-                                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded-xl transition-all duration-300 flex items-center justify-center">
-                                        <div className="bg-white/90 px-3 py-1 rounded-full text-xs font-medium text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/10">
+                                        <div className="bg-white/90 px-3 py-1 rounded-full text-xs font-medium text-gray-700 shadow-lg">
                                             🔍 Klik untuk perbesar
                                         </div>
                                         </div>
                                     </div>
                                     </div>
-                                ) : !isAdmin ? (
+                                ) : !isAdmin && item.foto_izin ? (
                                     <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
                                     <div className="flex items-center gap-2 text-blue-700 text-xs">
                                         <span>🔒</span>
