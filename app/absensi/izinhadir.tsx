@@ -34,13 +34,17 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
+      // Safari-friendly constraints dengan resolusi lebih kecil untuk performa
+      const constraints: MediaStreamConstraints = {
+        video: {
           facingMode: mode,
-          width: { ideal: 1280 },
-          height: { ideal: 1920 }
-        } 
-      });
+          width: { ideal: 640, max: 1280 },
+          height: { ideal: 480, max: 960 }
+        },
+        audio: false
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       
       streamRef.current = stream;
       setFacingMode(mode);
@@ -49,16 +53,29 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute('playsinline', 'true');
         videoRef.current.setAttribute('webkit-playsinline', 'true');
-        try {
-          await videoRef.current.play();
-        } catch (playError) {
-          console.log("Auto-play prevented");
-        }
+        videoRef.current.setAttribute('muted', 'true');
+        
+        // Wait for metadata to load before playing
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch(err => {
+            console.log("Play error:", err);
+          });
+        };
       }
       setIsCameraOpen(true);
-    } catch (error) {
-      alert("Gagal membuka kamera. Pastikan Anda memberikan izin akses kamera.");
+    } catch (error: any) {
       console.error("Camera error:", error);
+      let errorMsg = "Gagal membuka kamera. ";
+      if (error.name === 'NotAllowedError') {
+        errorMsg += "Izin kamera ditolak. Mohon berikan izin akses kamera.";
+      } else if (error.name === 'NotFoundError') {
+        errorMsg += "Kamera tidak ditemukan.";
+      } else if (error.name === 'NotReadableError') {
+        errorMsg += "Kamera sedang digunakan aplikasi lain.";
+      } else {
+        errorMsg += "Pastikan Anda memberikan izin akses kamera.";
+      }
+      alert(errorMsg);
     }
   };
 
@@ -73,13 +90,39 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
       const videoWidth = videoRef.current.videoWidth;
       const videoHeight = videoRef.current.videoHeight;
       
-      canvas.width = videoWidth;
-      canvas.height = videoHeight;
+      // Resize untuk mencapai target 100KB (mulai dengan max 600px width)
+      let targetWidth = videoWidth;
+      let targetHeight = videoHeight;
+      
+      // Resize bertahap untuk kualitas optimal
+      if (targetWidth > 600) {
+        const ratio = 600 / targetWidth;
+        targetWidth = 600;
+        targetHeight = videoHeight * ratio;
+      }
+      
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
       
       const ctx = canvas.getContext("2d");
       if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, videoWidth, videoHeight);
-        const imageData = canvas.toDataURL("image/jpeg", 0.9);
+        // Draw dengan smoothing untuk kualitas lebih baik
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(videoRef.current, 0, 0, targetWidth, targetHeight);
+        
+        // Compress bertahap sampai mencapai ~100KB
+        let quality = 0.8;
+        let imageData = canvas.toDataURL("image/jpeg", quality);
+        
+        // Iterasi untuk mencapai ukuran mendekati 100KB
+        while (imageData.length > 137000 && quality > 0.3) { // 137000 ≈ 100KB base64
+          quality -= 0.05;
+          imageData = canvas.toDataURL("image/jpeg", quality);
+        }
+        
+        console.log("Compressed image size:", Math.round(imageData.length * 0.75 / 1024), "KB, quality:", quality.toFixed(2));
+        
         setCapturedImage(imageData);
         closeCamera();
       }
@@ -115,21 +158,34 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
     setLoading(true);
 
     try {
-      const currentUser = localStorage.getItem("user");
-      if (!currentUser) {
+      const logged = localStorage.getItem("loggedUser");
+      if (!logged) {
         alert("Silakan login terlebih dahulu!");
         setLoading(false);
         return;
       }
 
-      const user = JSON.parse(currentUser);
-      const today = new Date().toISOString().split("T")[0];
+      // Get user data from database
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("username", logged)
+        .single();
+
+      if (userError || !userData) {
+        console.error("User fetch error:", userError);
+        alert("Gagal mengambil data user!");
+        setLoading(false);
+        return;
+      }
+
+      const today = moment().format("YYYY-MM-DD");
 
       // Check if user already submitted attendance today
       const { data: existingData } = await supabase
         .from("absensi")
         .select("*")
-        .eq("username", user.username)
+        .eq("username", userData.username)
         .eq("tanggal", today)
         .maybeSingle();
 
@@ -139,25 +195,43 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
         return;
       }
 
-      // Convert base64 to blob
-      const base64Response = await fetch(capturedImage);
-      const blob = await base64Response.blob();
+      // Convert base64 to blob dengan error handling
+      let blob: Blob;
+      try {
+        const base64Response = await fetch(capturedImage);
+        blob = await base64Response.blob();
+        
+        console.log("Blob size:", Math.round(blob.size / 1024), "KB");
+        
+        // Validate blob size (max 2MB untuk safety)
+        if (blob.size > 2 * 1024 * 1024) {
+          throw new Error("Ukuran foto terlalu besar. Maksimal 2MB.");
+        }
+      } catch (blobError) {
+        console.error("Blob conversion error:", blobError);
+        alert("Gagal memproses foto. Silakan coba ambil foto ulang.");
+        setLoading(false);
+        return;
+      }
       
       // Upload foto to Supabase Storage
-      const fileName = `izin_${user.username}_${today}_${Date.now()}.jpg`;
+      const fileName = `izin_${userData.username}_${today}_${Date.now()}.jpg`;
       
-      console.log("Uploading file:", fileName);
+      console.log("Uploading file:", fileName, "Size:", blob.size);
       
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("izin_photos")
         .upload(fileName, blob, {
           contentType: "image/jpeg",
-          cacheControl: "3600"
+          cacheControl: "3600",
+          upsert: false
         });
 
       if (uploadError) {
         console.error("Upload error:", uploadError);
-        throw new Error(`Upload gagal: ${uploadError.message}`);
+        alert(`Upload gagal: ${uploadError.message}. Pastikan storage bucket 'izin_photos' sudah dibuat dan public.`);
+        setLoading(false);
+        return;
       }
 
       console.log("Upload success:", uploadData);
@@ -172,34 +246,48 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
       // Insert izin data to absensi table
       console.log("Inserting to absensi table...");
       
-      const { error: insertError } = await supabase.from("absensi").insert({
-        nama: user.nama,
-        username: user.username,
+      const insertData = {
+        nama: userData.nama,
+        username: userData.username,
         tanggal: today,
         status: "IZIN",
-        foto_profil: user.foto_profil || null,
-        keterangan: alasan,
+        foto_profil: userData.foto_profil || null,
+        keterangan: alasan.trim(),
         foto_izin: publicUrl,
         created_at: moment().tz("Asia/Jakarta").format("YYYY-MM-DD HH:mm:ss"),
-      });
+      };
+
+      console.log("Insert data:", insertData);
+
+      const { data: insertResult, error: insertError } = await supabase
+        .from("absensi")
+        .insert(insertData)
+        .select();
 
       if (insertError) {
         console.error("Insert error:", insertError);
-        throw new Error(`Insert gagal: ${insertError.message}`);
+        
+        // Cleanup uploaded file if insert fails
+        await supabase.storage
+          .from("izin_photos")
+          .remove([fileName]);
+        
+        alert(`Insert gagal: ${insertError.message}. Pastikan tabel 'absensi' memiliki kolom 'keterangan' dan 'foto_izin'.`);
+        setLoading(false);
+        return;
       }
 
-      console.log("Insert success!");
+      console.log("Insert success!", insertResult);
 
-      alert("Izin tidak hadir berhasil dicatat!");
+      alert("✅ Izin tidak hadir berhasil dicatat!\n\n⚠️ Foto hanya dapat dilihat oleh admin.");
       onSuccess();
       onClose();
     } catch (error: any) {
-      console.error("Full error object:", error);
-      const errorMessage = error?.message || error?.error_description || JSON.stringify(error);
-      alert("Gagal mencatat izin: " + errorMessage);
+      console.error("Full error:", error);
+      alert("❌ Gagal mencatat izin: " + (error?.message || "Unknown error"));
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -211,7 +299,7 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
           </div>
           <div>
             <h2 className="text-xl font-bold text-slate-800">Izin Tidak Hadir</h2>
-            <p className="text-sm text-slate-600">Ambil foto dan isi alasan izin</p>
+            <p className="text-sm text-slate-600">Foto & alasan wajib diisi</p>
           </div>
         </div>
 
@@ -344,9 +432,11 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
             <div>
               <p className="text-blue-700 text-xs">
                 • Foto wajib diambil langsung menggunakan kamera<br/>
-                • Klik 🔄 di video untuk ganti kamera depan/belakang<br/>
-                • Pastikan foto terlihat jelas<br/>
-                • Alasan izin wajib diisi
+                • Klik 🔄 untuk ganti kamera depan/belakang<br/>
+                • Foto otomatis dioptimasi ~100KB untuk hemat data<br/>
+                • Alasan izin wajib diisi dengan jelas<br/>
+                • <strong>Foto hanya dapat dilihat oleh admin</strong><br/>
+                • Untuk Safari/iOS: Izinkan akses kamera di pengaturan browser
               </p>
             </div>
           </div>

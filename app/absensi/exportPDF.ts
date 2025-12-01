@@ -9,6 +9,16 @@ interface RekapData {
   persentaseHadir: number;
 }
 
+// Helper function untuk convert nama bulan ke index
+const getBulanIndex = (bulanNama: string): number => {
+  const bulanMap: { [key: string]: number } = {
+    'Januari': 0, 'Februari': 1, 'Maret': 2, 'April': 3,
+    'Mei': 4, 'Juni': 5, 'Juli': 6, 'Agustus': 7,
+    'September': 8, 'Oktober': 9, 'November': 10, 'Desember': 11
+  };
+  return bulanMap[bulanNama] || 0;
+};
+
 export const exportRekapToPDF = (
   rekap: RekapData[],
   bulanNama: string,
@@ -29,7 +39,9 @@ export const exportRekapToPDF = (
   doc.setFont("times", "normal");
   doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
-  const bulanAngka = String(new Date().getMonth() + 1).padStart(2, '0');
+  
+  // Gunakan bulan yang sedang dilihat user, bukan bulan sekarang
+  const bulanAngka = String(getBulanIndex(bulanNama) + 1).padStart(2, '0');
   const nomorDokumen = `Nomor: ${String(rekap.length).padStart(3, '0')}/LDII-BPK/${bulanAngka}/${tahun}`;
   doc.text(nomorDokumen, pageWidth - 15, 12, { align: 'right' });
   
@@ -262,7 +274,10 @@ export const exportRekapToPDF = (
   doc.setFont("times", "normal");
   doc.setFontSize(11);
   doc.setTextColor(0, 0, 0);
-  const lastDay = new Date(tahun, new Date().getMonth() + 1, 0).getDate();
+  
+  // Gunakan hari terakhir dari bulan yang dipilih
+  const bulanIndex = getBulanIndex(bulanNama);
+  const lastDay = new Date(tahun, bulanIndex + 1, 0).getDate();
   const tanggalPengesahan = `Gresik, ${lastDay} ${bulanNama} ${tahun}`;
   doc.text(tanggalPengesahan, pageWidth - 15, pengesahanY, { align: 'right' });
   doc.text("Kepengurusan Remaja LDII BPKULON", pageWidth - 15, pengesahanY + 6, { align: 'right' });
@@ -322,6 +337,6 @@ export const exportRekapToPDF = (
   doc.text(printTime, (pageWidth - printTimeWidth) / 2, pageHeight - 15);
   
   // Save PDF
-  const fileName = `Rekap-Kehadiran-${bulanNama}-${tahun}-LDII-BPKULON.pdf`;
+  const fileName = `Rekap Auto-Generated Sistem Presensi Generus Remaja BPKULON ${bulanNama}-${tahun}.pdf`;
   doc.save(fileName);
 };

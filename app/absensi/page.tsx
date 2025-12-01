@@ -592,6 +592,7 @@
                         {izinHariIni.map((item, idx) => {
                         const waktuIzin = item.created_at ? moment(item.created_at).format("HH:mm") : moment().format("HH:mm");
                         const isRecentlyAdded = item.created_at && moment().diff(moment(item.created_at), 'minutes') < 2;
+                        const isAdmin = user?.is_admin === true;
 
                         return (
                             <div
@@ -605,8 +606,9 @@
                                 animationDelay: `${idx * 100}ms`
                             }}
                             >
-                            <div className="flex items-start space-x-2 sm:space-x-4">
-                                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg overflow-hidden flex-shrink-0">
+                            <div className="flex flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-4">
+                                {/* Profile Section */}
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-orange-300 shadow-lg">
                                 {item.foto_profil ? (
                                     <img 
                                     src={item.foto_profil} 
@@ -614,10 +616,14 @@
                                     className="w-full h-full object-cover"
                                     />
                                 ) : (
+                                    <div className="w-full h-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-white font-bold">
                                     <span className="text-sm sm:text-base">{(item.nama || "?").charAt(0).toUpperCase()}</span>
+                                    </div>
                                 )}
                                 </div>
-                                <div className="flex-1 min-w-0">
+                                
+                                {/* Content Section */}
+                                <div className="flex-1 min-w-0 w-full">
                                 <div className="flex items-start justify-between mb-2 gap-2">
                                     <div className="flex-1 min-w-0">
                                     <div className="font-bold text-gray-800 text-sm sm:text-base md:text-lg truncate">
@@ -639,18 +645,36 @@
                                     )}
                                     </div>
                                 </div>
-                                <div className="bg-orange-50 border-l-4 border-orange-400 p-3 rounded-lg">
+                                
+                                {/* Alasan */}
+                                <div className="bg-orange-50 border-l-4 border-orange-400 p-3 rounded-lg mb-2">
                                     <div className="text-xs font-semibold text-orange-700 mb-1">Alasan:</div>
                                     <div className="text-sm text-gray-700">{item.keterangan || "Tidak ada keterangan"}</div>
                                 </div>
-                                {item.foto_izin && (
+                                
+                                {/* Foto izin - HANYA untuk ADMIN */}
+                                {isAdmin && item.foto_izin && (
                                     <div className="mt-2">
-                                    <img 
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded-full">
+                                        🔒 Admin Only
+                                        </div>
+                                    </div>
+                                    <div 
+                                        className="relative group cursor-pointer"
+                                        onClick={() => window.open(item.foto_izin, '_blank')}
+                                    >
+                                        <img 
                                         src={item.foto_izin} 
                                         alt="Foto Izin" 
-                                        className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg border-2 border-orange-200 cursor-pointer hover:scale-105 transition-transform"
-                                        onClick={() => window.open(item.foto_izin, '_blank')}
-                                    />
+                                        className="w-full sm:w-48 h-48 sm:h-64 object-cover rounded-xl border-2 border-orange-200 transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl"
+                                        />
+                                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded-xl transition-all duration-300 flex items-center justify-center">
+                                        <div className="bg-white/90 px-3 py-1 rounded-full text-xs font-medium text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                            🔍 Klik untuk perbesar
+                                        </div>
+                                        </div>
+                                    </div>
                                     </div>
                                 )}
                                 </div>
