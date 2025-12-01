@@ -653,8 +653,8 @@
                                 </div>
                                 
                                 {/* Foto izin - HANYA untuk ADMIN */}
-                                {isAdmin && item.foto_izin && (
-                                    <div className="mt-2">
+                                {isAdmin && item.foto_izin ? (
+                                    <div className="mt-3">
                                     <div className="flex items-center gap-2 mb-2">
                                         <div className="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded-full">
                                         🔒 Admin Only
@@ -668,6 +668,10 @@
                                         src={item.foto_izin} 
                                         alt="Foto Izin" 
                                         className="w-full sm:w-48 h-48 sm:h-64 object-cover rounded-xl border-2 border-orange-200 transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl"
+                                        onError={(e) => {
+                                            console.error("Image load error:", item.foto_izin);
+                                            e.currentTarget.style.display = 'none';
+                                        }}
                                         />
                                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded-xl transition-all duration-300 flex items-center justify-center">
                                         <div className="bg-white/90 px-3 py-1 rounded-full text-xs font-medium text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -676,7 +680,14 @@
                                         </div>
                                     </div>
                                     </div>
-                                )}
+                                ) : !isAdmin ? (
+                                    <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                    <div className="flex items-center gap-2 text-blue-700 text-xs">
+                                        <span>🔒</span>
+                                        <span className="font-medium">Foto izin hanya dapat dilihat oleh admin</span>
+                                    </div>
+                                    </div>
+                                ) : null}
                                 </div>
                             </div>
                             </div>
