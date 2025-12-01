@@ -181,6 +181,27 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
 
       const today = moment().format("YYYY-MM-DD");
 
+      // ========== CEK JADWAL GURU UNTUK HARI INI ==========
+      const { data: jadwalData, error: jadwalError } = await supabase
+        .from("jadwal_guru")
+        .select("*")
+        .eq("tanggal", today)
+        .eq("guru", userData.nama);
+
+      if (jadwalError) {
+        console.error("Jadwal check error:", jadwalError);
+      }
+
+      if (!jadwalData || jadwalData.length === 0) {
+        alert("⚠️ JADWAL BELUM TERSEDIA\n\nAnda tidak memiliki jadwal mengajar hari ini.\nSilakan hubungi admin untuk konfirmasi jadwal.\n\n📞 Hubungi Admin untuk informasi lebih lanjut.");
+        setLoading(false);
+        return;
+      }
+
+      // Ambil kode absensi dari jadwal
+      const kodeAbsensi = jadwalData[0].kode_absensi;
+      console.log("Kode absensi dari jadwal:", kodeAbsensi);
+
       // Check if user already submitted attendance today
       const { data: existingData } = await supabase
         .from("absensi")
@@ -243,7 +264,7 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
 
       console.log("Public URL:", publicUrl);
 
-      // Insert izin data to absensi table
+      // Insert izin data to absensi table dengan KODE ABSENSI dari jadwal
       console.log("Inserting to absensi table...");
       
       const insertData = {
@@ -251,6 +272,7 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
         username: userData.username,
         tanggal: today,
         status: "IZIN",
+        kode_absensi: kodeAbsensi, // Kode dari jadwal_guru
         foto_profil: userData.foto_profil || null,
         keterangan: alasan.trim(),
         foto_izin: publicUrl,
@@ -279,7 +301,7 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
 
       console.log("Insert success!", insertResult);
 
-      alert("✅ Izin tidak hadir berhasil dicatat!\n\n⚠️ Foto hanya dapat dilihat oleh admin.");
+      alert(`✅ Izin tidak hadir berhasil dicatat!\nKode Absensi: ${kodeAbsensi}\n\n⚠️ Foto hanya dapat dilihat oleh admin.\n\n⚠️ PENTING: Jika admin menghapus foto izin Anda, status akan berubah menjadi TIDAK HADIR.`);
       onSuccess();
       onClose();
     } catch (error: any) {

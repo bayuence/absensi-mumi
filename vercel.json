@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/auto-record-tidak-hadir",
+      "schedule": "30 0 * * *"
+    }
+  ]
+}

@@ -129,6 +129,12 @@
             return;
         }
 
+        // Buat map nama guru -> kode absensi dari jadwal
+        const guruKodeMap = new Map<string, string>();
+        jadwalHariIni.forEach((j) => {
+            guruKodeMap.set(j.guru, j.kode_absensi);
+        });
+
         // Ambil semua user
         const { data: semuaUser } = await supabase.from("users").select("*");
 
@@ -142,15 +148,19 @@
 
         const userSudahAbsen = new Set(sudahAbsen?.map((a) => a.username) || []);
 
-        // Buat record ketidakhadiran untuk user yang belum absen
+        // Buat record ketidakhadiran untuk user yang belum absen DAN ada di jadwal
         const ketidakhadiranRecords = semuaUser
-            .filter((user) => !userSudahAbsen.has(user.username))
+            .filter((user) => {
+                // User belum absen DAN ada di jadwal hari ini
+                return !userSudahAbsen.has(user.username) && guruKodeMap.has(user.nama);
+            })
             .map((user) => ({
-            username: user.username,
-            nama: user.nama,
-            tanggal: tanggal,
-            status: "TIDAK_HADIR",
-            foto_profil: user.foto_profil || null,
+                username: user.username,
+                nama: user.nama,
+                tanggal: tanggal,
+                status: "TIDAK_HADIR",
+                kode_absensi: guruKodeMap.get(user.nama) || null, // Ambil kode dari jadwal
+                foto_profil: user.foto_profil || null,
             }));
 
         if (ketidakhadiranRecords.length > 0) {
@@ -272,20 +282,21 @@
         return;
         }
 
-        // Insert record dengan format yang benar
+        // Insert record dengan kode_absensi dari jadwal
         const { error } = await supabase.from("absensi").insert([
         {
             username: user.username,
             nama: user.nama,
             tanggal: today,
             status: "HADIR",
+            kode_absensi: cocok.kode_absensi, // Simpan kode absensi
             foto_profil: user.foto_profil || null,
             created_at: moment().tz("Asia/Jakarta").format("YYYY-MM-DD HH:mm:ss"),
         },
         ]);
 
         if (!error) {
-        setAbsenStatus("✅ Presensi berhasil.");
+        setAbsenStatus(`✅ Presensi berhasil. Kode: ${cocok.kode_absensi}`);
         setKodeGuru("");
         fetchHadirHariIni();
         } else {
