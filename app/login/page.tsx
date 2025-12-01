@@ -109,8 +109,9 @@
             setSuccess('Login berhasil!');
             console.log('Login berhasil untuk:', userData.nama);
             
-            // Simpan username ke localStorage
+            // Simpan data user lengkap ke localStorage (termasuk is_admin)
             localStorage.setItem('loggedUser', userData.username);
+            localStorage.setItem('user', JSON.stringify(userData));
             
             // Redirect ke dashboard
             setTimeout(() => {
@@ -192,8 +193,9 @@
         setSuccess('Pendaftaran berhasil! Mengarahkan ke dashboard...');
         console.log('User berhasil didaftarkan:', newUser);
         
-        // Simpan username ke localStorage dan langsung ke dashboard
+        // Simpan data user lengkap ke localStorage (is_admin default false dari database)
         localStorage.setItem('loggedUser', newUser.username);
+        localStorage.setItem('user', JSON.stringify(newUser));
         
         setTimeout(() => {
             router.push('/dashboard');

@@ -4,6 +4,7 @@ import autoTable from "jspdf-autotable";
 interface RekapData {
   nama: string;
   jumlahHadir: number;
+  jumlahIzin: number;
   jumlahTidakHadir: number;
   persentaseHadir: number;
 }
@@ -119,10 +120,11 @@ export const exportRekapToPDF = (
   
   autoTable(doc, {
     startY: currentY,
-    head: [['Nama', 'Hadir', 'Tidak Hadir', 'Persentase']],
+    head: [['Nama', 'Hadir', 'Izin', 'Tidak Hadir', 'Persentase']],
     body: [[
       tertinggi.nama,
       tertinggi.jumlahHadir.toString(),
+      tertinggi.jumlahIzin.toString(),
       tertinggi.jumlahTidakHadir.toString(),
       `${tertinggi.persentaseHadir}%`
     ]],
@@ -138,10 +140,11 @@ export const exportRekapToPDF = (
       halign: 'center'
     },
     columnStyles: {
-      0: { halign: 'left', cellWidth: 85 },
-      1: { halign: 'center', cellWidth: 30 },
-      2: { halign: 'center', cellWidth: 35 },
-      3: { halign: 'center', cellWidth: 35 }
+      0: { halign: 'left', cellWidth: 70 },
+      1: { halign: 'center', cellWidth: 25 },
+      2: { halign: 'center', cellWidth: 25 },
+      3: { halign: 'center', cellWidth: 30 },
+      4: { halign: 'center', cellWidth: 30 }
     }
   });
   
@@ -162,11 +165,12 @@ export const exportRekapToPDF = (
   // === TABEL REKAP LENGKAP ===
   autoTable(doc, {
     startY: currentY,
-    head: [['No', 'Nama', 'Hadir', 'Tidak Hadir', 'Persentase']],
+    head: [['No', 'Nama', 'Hadir', 'Izin', 'Tidak Hadir', 'Persentase']],
     body: rekap.map((item, index) => [
       (index + 1).toString(),
       item.nama,
       item.jumlahHadir.toString(),
+      item.jumlahIzin.toString(),
       item.jumlahTidakHadir.toString(),
       `${item.persentaseHadir}%`
     ]),
@@ -191,15 +195,16 @@ export const exportRekapToPDF = (
       fillColor: [245, 247, 250]
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 15 }, // No
-      1: { halign: 'left', cellWidth: 85 },   // Nama
-      2: { halign: 'center', cellWidth: 25 }, // Hadir
-      3: { halign: 'center', cellWidth: 30 }, // Tidak Hadir
-      4: { halign: 'center', cellWidth: 30 }  // Persentase
+      0: { halign: 'center', cellWidth: 12 }, // No
+      1: { halign: 'left', cellWidth: 68 },   // Nama
+      2: { halign: 'center', cellWidth: 20 }, // Hadir
+      3: { halign: 'center', cellWidth: 20 }, // Izin
+      4: { halign: 'center', cellWidth: 30 }, // Tidak Hadir
+      5: { halign: 'center', cellWidth: 30 }  // Persentase
     },
     didParseCell: function(data) {
       // Warna persentase berdasarkan nilai
-      if (data.column.index === 4 && data.section === 'body') {
+      if (data.column.index === 5 && data.section === 'body') {
         const persentase = parseInt(data.cell.text[0]);
         if (persentase >= 80) {
           data.cell.styles.textColor = [34, 197, 94]; // Hijau

@@ -15,6 +15,8 @@ export interface User {
   keterangan?: string;
   foto_profil?: string | null;
   foto_sampul?: string | null;
+  is_admin?: boolean;
+  password?: string;
 }
 
 export interface Database {
@@ -44,6 +46,37 @@ export interface Database {
           tanggal?: string
           waktu?: string
           status_presensi?: string
+        }
+      }
+      absensi: {
+        Row: {
+          id: string
+          username: string
+          nama: string
+          tanggal: string
+          status: string
+          foto_profil?: string | null
+          foto_izin?: string | null
+          keterangan?: string | null
+          created_at?: string
+        }
+        Insert: {
+          username: string
+          nama: string
+          tanggal: string
+          status: string
+          foto_profil?: string | null
+          foto_izin?: string | null
+          keterangan?: string | null
+        }
+        Update: {
+          username?: string
+          nama?: string
+          tanggal?: string
+          status?: string
+          foto_profil?: string | null
+          foto_izin?: string | null
+          keterangan?: string | null
         }
       }
     }

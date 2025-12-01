@@ -16,6 +16,7 @@
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [currentPath, setCurrentPath] = useState("");
     const [userPhoto, setUserPhoto] = useState<string | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
         const user = localStorage.getItem("loggedUser");
@@ -23,26 +24,64 @@
         router.push("/login");
         } else {
         setUsername(user);
-        fetchUserPhoto(user);
+        fetchUserData(user);
         }
         
         // Get current path for active link highlighting
         setCurrentPath(window.location.pathname);
+
+        // Refetch user data when window gains focus (for admin status updates)
+        const handleFocus = () => {
+            const currentUser = localStorage.getItem("loggedUser");
+            if (currentUser) {
+                fetchUserData(currentUser);
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        
+        // Poll for admin status changes every 3 seconds
+        const pollInterval = setInterval(() => {
+            const currentUser = localStorage.getItem("loggedUser");
+            if (currentUser) {
+                fetchUserData(currentUser);
+            }
+        }, 3000);
+        
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+            clearInterval(pollInterval);
+        };
     }, [router]);
 
-    const fetchUserPhoto = async (username: string) => {
+    const fetchUserData = async (username: string) => {
         try {
             const { data, error } = await supabase
                 .from('users')
-                .select('foto_profil')
+                .select('foto_profil, is_admin')
                 .eq('username', username)
                 .single();
             
-            if (!error && data?.foto_profil) {
-                setUserPhoto(data.foto_profil);
+            if (!error && data) {
+                if (data.foto_profil) {
+                    setUserPhoto(data.foto_profil);
+                }
+                const newAdminStatus = data.is_admin || false;
+                
+                // Only update if admin status changed
+                if (newAdminStatus !== isAdmin) {
+                    setIsAdmin(newAdminStatus);
+                    console.log('Admin status updated:', newAdminStatus);
+                }
+                
+                // Update localStorage with latest admin status
+                const userData = JSON.parse(localStorage.getItem('user') || '{}');
+                userData.is_admin = newAdminStatus;
+                userData.foto_profil = data.foto_profil;
+                localStorage.setItem('user', JSON.stringify(userData));
             }
         } catch (error) {
-            console.error('Error fetching user photo:', error);
+            console.error('Error fetching user data:', error);
         }
     };
 
@@ -60,7 +99,9 @@
         { href: "/absensi", label: "Presensi", icon: "✅" },
         { href: "/laporan", label: "Laporan", icon: "📊" },
         { href: "/profil", label: "Profil", icon: "👤" },
-        ...(username === "admin" ? [{ href: "/admin", label: "Admin", icon: "⚙️" }] : [])
+        ...(isAdmin ? [
+            { href: "/admin", label: "Admin", icon: "⚙️" }
+        ] : [])
     ];
 
     return (
