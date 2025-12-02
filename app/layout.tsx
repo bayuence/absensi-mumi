@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 
 // URL website kamu (Penting untuk SEO)
@@ -92,8 +93,23 @@ export default function RootLayout({
 
   return (
     <html lang="id">
+      <head>
+        {/* Google Analytics */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-9VRC4Z4SB0"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-9VRC4Z4SB0');
+          `}
+        </Script>
+      </head>
       <body className="bg-gray-900 text-gray-100 antialiased">
-        {/* Script disisipkan di sini */}
+        {/* Script JSON-LD disisipkan di sini */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
