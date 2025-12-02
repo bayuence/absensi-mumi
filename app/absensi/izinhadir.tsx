@@ -181,25 +181,24 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
 
       const today = moment().format("YYYY-MM-DD");
 
-      // ========== CEK JADWAL GURU UNTUK HARI INI ==========
+      // ========== AMBIL KODE ABSENSI DARI JADWAL ==========
+      // (Validasi jadwal sudah dilakukan sebelum modal dibuka)
       const { data: jadwalData, error: jadwalError } = await supabase
         .from("jadwal_guru")
         .select("*")
         .eq("tanggal", today)
-        .eq("guru", userData.nama);
+        .eq("guru", userData.nama)
+        .maybeSingle();
 
-      if (jadwalError) {
-        console.error("Jadwal check error:", jadwalError);
-      }
-
-      if (!jadwalData || jadwalData.length === 0) {
-        alert("⚠️ JADWAL BELUM TERSEDIA\n\nAnda tidak memiliki jadwal mengajar hari ini.\nSilakan hubungi admin untuk konfirmasi jadwal.\n\n📞 Hubungi Admin untuk informasi lebih lanjut.");
+      if (jadwalError || !jadwalData) {
+        console.error("Jadwal fetch error:", jadwalError);
+        alert("Gagal mengambil data jadwal. Silakan coba lagi.");
         setLoading(false);
         return;
       }
 
       // Ambil kode absensi dari jadwal
-      const kodeAbsensi = jadwalData[0].kode_absensi;
+      const kodeAbsensi = jadwalData.kode_absensi;
       console.log("Kode absensi dari jadwal:", kodeAbsensi);
 
       // Check if user already submitted attendance today

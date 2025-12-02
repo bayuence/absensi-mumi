@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   
   // Deskripsi yang akan muncul di bawah judul di Google
   description:
-    "Sistem presensi digital resmi Generus LDII BPKULON Gresik. Login untuk absensi kegiatan, rekap data otomatis, dan monitoring kehadiran yang aman. Developed by bayuence",
+    "Sistem presensi digital resmi Generus LDII BPKULON Gresik. Rekap data otomatis. Developed by bayuence",
   
   keywords: [
     "Presensi MUMI",
@@ -76,9 +76,13 @@ export default function RootLayout({
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "name": "Presensi MUMI",
-    "alternateName": ["Sistem Presensi Generus LDII", "MUMI BPKULON"],
+    "name": "Presensi Generus",
+    "alternateName": ["Presensi MUMI", "Sistem Presensi Generus LDII", "MUMI BPKULON"],
     "url": baseUrl,
+    "publisher": {
+      "@type": "Organization",
+      "name": "Generus LDII BPKULON",
+    },
     "potentialAction": {
       "@type": "SearchAction",
       "target": `${baseUrl}/?q={search_term_string}`,

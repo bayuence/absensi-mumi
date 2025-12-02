@@ -65,8 +65,55 @@
         fetchHadirHariIni();
     }, [today, absenStatus]);
 
-    const fetchHadirHariIni = async () => {
-        if (!today) {
+  const handleIzinClick = async () => {
+    if (!user) {
+      alert("Silakan login terlebih dahulu!");
+      return;
+    }
+
+    if (!today) {
+      alert("Tanggal belum tersedia!");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Cek jadwal guru untuk hari ini
+      const { data: jadwalData, error: jadwalError } = await supabase
+        .from("jadwal_guru")
+        .select("*")
+        .eq("tanggal", today)
+        .eq("guru", user.nama);
+
+      if (jadwalError) {
+        console.error("Jadwal check error:", jadwalError);
+        alert("Gagal mengecek jadwal. Silakan coba lagi.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (!jadwalData || jadwalData.length === 0) {
+        alert(
+          "⚠️ JADWAL BELUM TERSEDIA\n\n" +
+          "Anda tidak memiliki jadwal mengajar hari ini.\n" +
+          "Silakan hubungi admin untuk konfirmasi jadwal.\n\n" +
+          "📞 Hubungi Admin untuk informasi lebih lanjut."
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Jika jadwal ada, buka modal izin
+      setShowIzinModal(true);
+    } catch (error: any) {
+      console.error("Error checking jadwal:", error);
+      alert("Terjadi kesalahan saat mengecek jadwal.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
         console.log("Today is not set yet");
         return;
         }
@@ -420,11 +467,7 @@
                 </div>
 
                 <button
-                    onClick={() => setShowIzinModal(true)}
-                    disabled={isLoading}
-                    className="w-full py-3 px-6 rounded-xl font-bold text-white transition-all duration-300 transform bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    <div className="flex items-center justify-center space-x-2">
+                onClick={handleIzinClick}
                     <span>📝</span>
                     <span>Ajukan Izin Tidak Hadir</span>
                     </div>
