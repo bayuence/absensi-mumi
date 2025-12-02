@@ -136,6 +136,26 @@ export default function AdminPage() {
               </div>
             </button>
 
+            {/* Export PDF Rekap */}
+            <button
+              onClick={() => router.push('/admin/kelolapresensi#rekap')}
+              className="group bg-white/80 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-xl border border-white/50 p-5 sm:p-6 lg:p-8 hover:shadow-2xl transition-all duration-300 hover:scale-105 text-left"
+            >
+              <div className="flex items-center mb-3 sm:mb-4">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center text-2xl sm:text-3xl lg:text-4xl group-hover:scale-110 transition-transform duration-300">
+                  📄
+                </div>
+              </div>
+              <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mb-1 sm:mb-2">Export PDF Rekap</h3>
+              <p className="text-slate-600 text-xs sm:text-sm lg:text-base">Unduh rekap kehadiran bulanan dalam format PDF</p>
+              <div className="mt-3 sm:mt-4 flex items-center text-cyan-600 font-medium text-xs sm:text-sm">
+                <span>Buka</span>
+                <svg className="w-3 h-3 sm:w-4 sm:h-4 ml-2 group-hover:translate-x-2 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
+
           </div>
 
           {/* Info Box */}

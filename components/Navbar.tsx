@@ -201,7 +201,7 @@
             </div>
 
             {/* Mobile Menu */}
-            <div className={`md:hidden transition-all duration-300 ${isMenuOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div className={`md:hidden overflow-hidden transition-all duration-300 ${isMenuOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'}`}>
             <div className="bg-white border-t border-gray-100 shadow-lg max-h-[calc(100vh-4rem)] overflow-y-auto">
                 <div className="px-4 py-4 pb-6 space-y-2">
                 {/* Mobile User Profile */}

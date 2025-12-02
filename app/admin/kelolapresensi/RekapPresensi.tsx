@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import moment from "moment";
 import "moment/locale/id";
+import { exportRekapToPDF } from "./exportPDF";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -86,7 +87,7 @@ export default function RekapPresensi() {
   };
 
   return (
-    <div className="mt-8 bg-white/80 backdrop-blur-sm rounded-xl shadow-xl border border-white/50 overflow-hidden">
+    <div id="rekap" className="mt-8 bg-white/80 backdrop-blur-sm rounded-xl shadow-xl border border-white/50 overflow-hidden scroll-mt-20">
       <div className="bg-gradient-to-r from-rose-500 to-pink-500 p-4 sm:p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -147,7 +148,19 @@ export default function RekapPresensi() {
             <p className="text-slate-400 text-sm mt-2">untuk bulan {bulanNama} {tahun}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-2 sm:mx-0">
+          <>
+            {/* Export PDF Button */}
+            <div className="flex justify-end mb-4">
+              <button
+                onClick={() => exportRekapToPDF(rekap, bulanNama, tahun)}
+                className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+              >
+                <span className="text-xl">📄</span>
+                <span>Export PDF</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
             <div className="inline-block min-w-full align-middle">
               <table className="min-w-full border-collapse">
                 <thead>
@@ -208,6 +221,7 @@ export default function RekapPresensi() {
               </table>
             </div>
           </div>
+          </>
         )}
       </div>
     </div>
