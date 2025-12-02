@@ -65,55 +65,8 @@
         fetchHadirHariIni();
     }, [today, absenStatus]);
 
-  const handleIzinClick = async () => {
-    if (!user) {
-      alert("Silakan login terlebih dahulu!");
-      return;
-    }
-
-    if (!today) {
-      alert("Tanggal belum tersedia!");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      // Cek jadwal guru untuk hari ini
-      const { data: jadwalData, error: jadwalError } = await supabase
-        .from("jadwal_guru")
-        .select("*")
-        .eq("tanggal", today)
-        .eq("guru", user.nama);
-
-      if (jadwalError) {
-        console.error("Jadwal check error:", jadwalError);
-        alert("Gagal mengecek jadwal. Silakan coba lagi.");
-        setIsLoading(false);
-        return;
-      }
-
-      if (!jadwalData || jadwalData.length === 0) {
-        alert(
-          "⚠️ JADWAL BELUM TERSEDIA\n\n" +
-          "Anda tidak memiliki jadwal mengajar hari ini.\n" +
-          "Silakan hubungi admin untuk konfirmasi jadwal.\n\n" +
-          "📞 Hubungi Admin untuk informasi lebih lanjut."
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      // Jika jadwal ada, buka modal izin
-      setShowIzinModal(true);
-    } catch (error: any) {
-      console.error("Error checking jadwal:", error);
-      alert("Terjadi kesalahan saat mengecek jadwal.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+    const fetchHadirHariIni = async () => {
+        if (!today) {
         console.log("Today is not set yet");
         return;
         }
@@ -176,12 +129,6 @@
             return;
         }
 
-        // Buat map nama guru -> kode absensi dari jadwal
-        const guruKodeMap = new Map<string, string>();
-        jadwalHariIni.forEach((j) => {
-            guruKodeMap.set(j.guru, j.kode_absensi);
-        });
-
         // Ambil semua user
         const { data: semuaUser } = await supabase.from("users").select("*");
 
@@ -195,19 +142,15 @@
 
         const userSudahAbsen = new Set(sudahAbsen?.map((a) => a.username) || []);
 
-        // Buat record ketidakhadiran untuk user yang belum absen DAN ada di jadwal
+        // Buat record ketidakhadiran untuk user yang belum absen
         const ketidakhadiranRecords = semuaUser
-            .filter((user) => {
-                // User belum absen DAN ada di jadwal hari ini
-                return !userSudahAbsen.has(user.username) && guruKodeMap.has(user.nama);
-            })
+            .filter((user) => !userSudahAbsen.has(user.username))
             .map((user) => ({
-                username: user.username,
-                nama: user.nama,
-                tanggal: tanggal,
-                status: "TIDAK_HADIR",
-                kode_absensi: guruKodeMap.get(user.nama) || null, // Ambil kode dari jadwal
-                foto_profil: user.foto_profil || null,
+            username: user.username,
+            nama: user.nama,
+            tanggal: tanggal,
+            status: "TIDAK_HADIR",
+            foto_profil: user.foto_profil || null,
             }));
 
         if (ketidakhadiranRecords.length > 0) {
@@ -329,21 +272,20 @@
         return;
         }
 
-        // Insert record dengan kode_absensi dari jadwal
+        // Insert record dengan format yang benar
         const { error } = await supabase.from("absensi").insert([
         {
             username: user.username,
             nama: user.nama,
             tanggal: today,
             status: "HADIR",
-            kode_absensi: cocok.kode_absensi, // Simpan kode absensi
             foto_profil: user.foto_profil || null,
             created_at: moment().tz("Asia/Jakarta").format("YYYY-MM-DD HH:mm:ss"),
         },
         ]);
 
         if (!error) {
-        setAbsenStatus(`✅ Presensi berhasil. Kode: ${cocok.kode_absensi}`);
+        setAbsenStatus("✅ Presensi berhasil.");
         setKodeGuru("");
         fetchHadirHariIni();
         } else {
@@ -467,7 +409,11 @@
                 </div>
 
                 <button
-                onClick={handleIzinClick}
+                    onClick={() => setShowIzinModal(true)}
+                    disabled={isLoading}
+                    className="w-full py-3 px-6 rounded-xl font-bold text-white transition-all duration-300 transform bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <div className="flex items-center justify-center space-x-2">
                     <span>📝</span>
                     <span>Ajukan Izin Tidak Hadir</span>
                     </div>
@@ -646,7 +592,6 @@
                         {izinHariIni.map((item, idx) => {
                         const waktuIzin = item.created_at ? moment(item.created_at).format("HH:mm") : moment().format("HH:mm");
                         const isRecentlyAdded = item.created_at && moment().diff(moment(item.created_at), 'minutes') < 2;
-                        const isAdmin = user?.is_admin === true;
 
                         return (
                             <div
@@ -660,9 +605,8 @@
                                 animationDelay: `${idx * 100}ms`
                             }}
                             >
-                            <div className="flex flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-4">
-                                {/* Profile Section */}
-                                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-orange-300 shadow-lg">
+                            <div className="flex items-start space-x-2 sm:space-x-4">
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg overflow-hidden flex-shrink-0">
                                 {item.foto_profil ? (
                                     <img 
                                     src={item.foto_profil} 
@@ -670,14 +614,10 @@
                                     className="w-full h-full object-cover"
                                     />
                                 ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-white font-bold">
                                     <span className="text-sm sm:text-base">{(item.nama || "?").charAt(0).toUpperCase()}</span>
-                                    </div>
                                 )}
                                 </div>
-                                
-                                {/* Content Section */}
-                                <div className="flex-1 min-w-0 w-full">
+                                <div className="flex-1 min-w-0">
                                 <div className="flex items-start justify-between mb-2 gap-2">
                                     <div className="flex-1 min-w-0">
                                     <div className="font-bold text-gray-800 text-sm sm:text-base md:text-lg truncate">
@@ -699,50 +639,20 @@
                                     )}
                                     </div>
                                 </div>
-                                
-                                {/* Alasan */}
-                                <div className="bg-orange-50 border-l-4 border-orange-400 p-3 rounded-lg mb-2">
+                                <div className="bg-orange-50 border-l-4 border-orange-400 p-3 rounded-lg">
                                     <div className="text-xs font-semibold text-orange-700 mb-1">Alasan:</div>
                                     <div className="text-sm text-gray-700">{item.keterangan || "Tidak ada keterangan"}</div>
                                 </div>
-                                
-                                {/* Foto izin - HANYA untuk ADMIN */}
-                                {isAdmin && item.foto_izin ? (
-                                    <div className="mt-3">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded-full">
-                                        🔒 Admin Only
-                                        </div>
-                                    </div>
-                                    <div 
-                                        className="relative group cursor-pointer rounded-xl overflow-hidden"
-                                        onClick={() => window.open(item.foto_izin, '_blank')}
-                                    >
-                                        <img 
+                                {item.foto_izin && (
+                                    <div className="mt-2">
+                                    <img 
                                         src={item.foto_izin} 
                                         alt="Foto Izin" 
-                                        className="w-full sm:w-48 h-48 sm:h-64 object-cover border-2 border-orange-200 transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl rounded-xl"
-                                        onError={(e) => {
-                                            console.error("Image load error:", item.foto_izin);
-                                            const parent = e.currentTarget.parentElement?.parentElement;
-                                            if (parent) parent.style.display = 'none';
-                                        }}
-                                        />
-                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/10">
-                                        <div className="bg-white/90 px-3 py-1 rounded-full text-xs font-medium text-gray-700 shadow-lg">
-                                            🔍 Klik untuk perbesar
-                                        </div>
-                                        </div>
+                                        className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg border-2 border-orange-200 cursor-pointer hover:scale-105 transition-transform"
+                                        onClick={() => window.open(item.foto_izin, '_blank')}
+                                    />
                                     </div>
-                                    </div>
-                                ) : !isAdmin && item.foto_izin ? (
-                                    <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                    <div className="flex items-center gap-2 text-blue-700 text-xs">
-                                        <span>🔒</span>
-                                        <span className="font-medium">Foto izin hanya dapat dilihat oleh admin</span>
-                                    </div>
-                                    </div>
-                                ) : null}
+                                )}
                                 </div>
                             </div>
                             </div>
