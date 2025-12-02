@@ -94,7 +94,7 @@ export default function ExportPDFMenu() {
         .map((a: any) => ({
           nama: a.nama,
           tanggal: a.tanggal,
-          keterangan: a.keterangan_izin || "-",
+          keterangan: a.keterangan_izin && a.keterangan_izin.trim() !== "" ? a.keterangan_izin : "Tidak ada keterangan",
           foto_izin: a.foto_izin,
           created_at: a.created_at
         }))
@@ -306,7 +306,7 @@ export default function ExportPDFMenu() {
         doc.setFontSize(10);
         doc.setTextColor(60, 60, 60);
         doc.text(`Tanggal: ${moment(izin.tanggal).format("DD MMMM YYYY")} (${moment(izin.tanggal).format("dddd")})`, 20, currentY + 28);
-        doc.text(`Keterangan: ${izin.keterangan || "Tidak ada keterangan"}`, 20, currentY + 35);
+        doc.text(`Keterangan: ${izin.keterangan}`, 20, currentY + 35);
         doc.text(`Waktu Pengajuan: ${moment(izin.created_at).format("DD/MM/YYYY HH:mm")} WIB`, 20, currentY + 42);
 
         // Foto izin dengan frame
@@ -531,7 +531,7 @@ export default function ExportPDFMenu() {
         doc.setFontSize(9);
         doc.setTextColor(60, 60, 60);
         doc.text(`Tanggal: ${moment(izin.tanggal).format("DD MMMM YYYY")}`, 20, currentY + 26);
-        doc.text(`Keterangan: ${izin.keterangan || "-"}`, 20, currentY + 32);
+        doc.text(`Keterangan: ${izin.keterangan}`, 20, currentY + 32);
         doc.text(`Diajukan: ${moment(izin.created_at).format("DD/MM HH:mm")}`, 20, currentY + 38);
 
         // Foto
