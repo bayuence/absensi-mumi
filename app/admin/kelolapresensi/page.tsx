@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import RekapPresensi from "./RekapPresensi";
 import KelolaIzin from "./KelolaIzin";
+import ExportPDFMenu from "./ExportPDFMenu";
 import moment from "moment";
 import "moment/locale/id";
 
@@ -307,6 +308,9 @@ export default function KelolaPresensiPage() {
 
           {/* Daftar Izin */}
           <KelolaIzin />
+
+          {/* Export PDF Menu */}
+          <ExportPDFMenu />
 
           {/* Rekap Kehadiran Bulanan */}
           <RekapPresensi />
