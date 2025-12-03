@@ -144,7 +144,7 @@ export default function AdminPage() {
               <div className="text-blue-400 text-xl flex-shrink-0">💡</div>
               <div>
                 <h3 className="text-blue-800 font-semibold mb-1">Informasi</h3>
-                <p className="text-blue-700 text-sm">Klik salah satu menu di atas untuk mengakses fitur admin yang tersedia.</p>
+                <p className="text-blue-700 text-sm">Klik salah satu menu di atas untuk mengakses fitur admin yang tersedia. Jika mengalami kendala, silakan hubungi admin atau ence.</p>
               </div>
             </div>
           </div>
