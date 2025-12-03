@@ -88,17 +88,55 @@ export default function ExportPDFMenu() {
         };
       });
 
-      // Data izin dengan foto
-      const izinData = absensiData
+      // Data izin dengan foto - dikelompokkan per nama dengan biodata lengkap
+      const izinDataRaw = absensiData
         .filter((a: any) => a.status === "IZIN" && a.foto_izin)
         .map((a: any) => ({
-          nama: a.nama,
+          nama: a.nama.toUpperCase(),
+          username: a.username,
           tanggal: a.tanggal,
-          keterangan: a.keterangan_izin && a.keterangan_izin.trim() !== "" ? a.keterangan_izin : "Tidak ada keterangan",
+          keterangan: a.keterangan && a.keterangan.trim() !== "" ? a.keterangan : "Tidak ada keterangan",
           foto_izin: a.foto_izin,
           created_at: a.created_at
-        }))
-        .sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime());
+        }));
+
+      // Kelompokkan izin per username dan ambil biodata lengkap
+      const izinByUsername: { [key: string]: any } = {};
+      izinDataRaw.forEach((izin) => {
+        if (!izinByUsername[izin.username]) {
+          izinByUsername[izin.username] = {
+            nama: izin.nama,
+            username: izin.username,
+            izinList: []
+          };
+        }
+        izinByUsername[izin.username].izinList.push(izin);
+      });
+
+      // Ambil biodata lengkap dari tabel users untuk setiap username yang izin
+      const izinDataWithBio = await Promise.all(
+        Object.keys(izinByUsername).map(async (username) => {
+          const { data: userData } = await supabase
+            .from("users")
+            .select("nama, asal, status, keterangan")
+            .eq("username", username)
+            .single();
+          
+          return {
+            nama: izinByUsername[username].nama,
+            username: username,
+            asal: userData?.asal || "-",
+            status: userData?.status || "-",
+            keterangan: userData?.keterangan || "-",
+            izinList: izinByUsername[username].izinList.sort((a: any, b: any) => 
+              new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime()
+            )
+          };
+        })
+      );
+
+      // Sort berdasarkan nama (alfabet)
+      const izinData = izinDataWithBio.sort((a: any, b: any) => a.nama.localeCompare(b.nama));
 
       // Generate PDF berdasarkan tipe
       if (selectedType === "rekap") {
@@ -123,7 +161,7 @@ export default function ExportPDFMenu() {
     const bulanAngka = String(moment().month(bulan).format("M")).padStart(2, '0');
     
     // Analisis data
-    const sorted = [...rekap].sort((a, b) => b.persentaseHadir - a.persentaseHadir);
+    const sorted = [...rekap].sort((a: any, b: any) => b.persentaseHadir - a.persentaseHadir);
     const tertinggi = sorted[0];
     
     addHeaderLengkap(doc, bulan, tahun, rekap.length, bulanAngka);
@@ -249,19 +287,22 @@ export default function ExportPDFMenu() {
     doc.save(`Rekap-Kehadiran-${bulan}-${tahun}.pdf`);
   };
 
-  // PDF Generator - Izin dengan Foto (FOTO TAMPIL PENUH)
+  // PDF Generator - Izin dengan Foto (LAYOUT MODERN + BIODATA)
   const generateIzinPDF = async (izinData: any[], bulan: string, tahun: number) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
     const bulanAngka = String(moment().month(bulan).format("M")).padStart(2, '0');
+    const totalOrang = izinData.length;
+    const totalIzin = izinData.reduce((sum, person) => sum + person.izinList.length, 0);
 
-    addHeaderLengkap(doc, bulan, tahun, izinData.length, bulanAngka, "DAFTAR IZIN");
+    addHeaderLengkap(doc, bulan, tahun, totalIzin, bulanAngka, "DOKUMENTASI IZIN");
 
     let currentY = 70;
 
     doc.setFont("times", "normal");
     doc.setFontSize(11);
-    const intro = `Berikut adalah daftar lengkap anggota yang mengajukan izin beserta bukti foto dan keterangan selama bulan ${bulan} ${tahun}. Total terdapat ${izinData.length} pengajuan izin yang tercatat dalam sistem.`;
+    const intro = `Berikut adalah dokumentasi lengkap pengajuan izin beserta biodata dan bukti foto selama bulan ${bulan} ${tahun}. Tercatat ${totalOrang} anggota dengan total ${totalIzin} pengajuan izin yang telah diverifikasi.`;
     const splitIntro = doc.splitTextToSize(intro, pageWidth - 30);
     doc.text(splitIntro, 15, currentY);
     currentY += (splitIntro.length * 5) + 10;
@@ -269,115 +310,248 @@ export default function ExportPDFMenu() {
     if (izinData.length === 0) {
       doc.setFont("times", "italic");
       doc.setFontSize(11);
-      doc.text("Tidak ada data izin dengan foto untuk bulan ini.", pageWidth / 2, currentY + 20, { align: 'center' });
+      doc.text("Tidak ada pengajuan izin pada bulan ini.", pageWidth / 2, currentY + 20, { align: 'center' });
       doc.setFont("times", "normal");
       doc.setFontSize(10);
       doc.text("Semua anggota hadir tanpa pengajuan izin.", pageWidth / 2, currentY + 30, { align: 'center' });
     } else {
-      for (let i = 0; i < izinData.length; i++) {
-        const izin = izinData[i];
+      // Loop per nama (kolom besar)
+      for (let personIdx = 0; personIdx < izinData.length; personIdx++) {
+        const person = izinData[personIdx];
+        const totalIzinPerson = person.izinList.length;
         
-        // Check if need new page (with more space for image)
-        if (currentY > 180) {
+        // Hitung tinggi yang dibutuhkan
+        const headerHeight = 15;
+        const biodataHeight = 25;
+        const izinItemHeight = 68;
+        const totalHeight = headerHeight + biodataHeight + (izinItemHeight * totalIzinPerson) + 8;
+        
+        // Check if need new page
+        if (currentY + totalHeight > pageHeight - 40) {
           doc.addPage();
           currentY = 20;
         }
 
-        // Box untuk setiap izin
-        doc.setDrawColor(0, 146, 63);
-        doc.setLineWidth(1);
-        doc.roundedRect(15, currentY, pageWidth - 30, 85, 3, 3);
+        // KOLOM BESAR untuk satu nama
+        doc.setDrawColor(251, 146, 60);
+        doc.setLineWidth(1.5);
+        doc.roundedRect(15, currentY, pageWidth - 30, totalHeight, 3, 3);
         
-        // Header number
-        doc.setFillColor(0, 146, 63);
-        doc.roundedRect(15, currentY, 30, 10, 3, 3, 'F');
-        doc.setFont("times", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor(255, 255, 255);
-        doc.text(`No. ${i + 1}`, 30, currentY + 7, { align: 'center' });
-
-        // Info izin
+        // Header kolom besar (Nama + Badge)
+        doc.setFillColor(251, 146, 60);
+        doc.roundedRect(15, currentY, pageWidth - 30, headerHeight, 3, 3, 'F');
         doc.setFont("times", "bold");
         doc.setFontSize(12);
-        doc.setTextColor(0, 0, 0);
-        doc.text(izin.nama, 20, currentY + 20);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`${personIdx + 1}. ${person.nama}`, 20, currentY + 10);
         
+        // Badge jumlah izin
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(pageWidth - 60, currentY + 3, 40, 9, 2, 2, 'F');
+        doc.setFont("times", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(251, 146, 60);
+        doc.text(`${totalIzinPerson} Izin`, pageWidth - 40, currentY + 9, { align: 'center' });
+        
+        currentY += headerHeight + 3;
+
+        // BIODATA SECTION
+        doc.setFillColor(255, 248, 240);
+        doc.rect(20, currentY, pageWidth - 40, biodataHeight, 'F');
+        doc.setDrawColor(251, 191, 143);
+        doc.setLineWidth(0.5);
+        doc.rect(20, currentY, pageWidth - 40, biodataHeight);
+        
+        // Label Header Biodata
+        doc.setFont("times", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(251, 146, 60);
+        doc.text("BIODATA ANGGOTA", 25, currentY + 6);
+        
+        // Data biodata dalam layout baris horizontal
+        let bioX = 25;
+        const bioY = currentY + 15;
         doc.setFont("times", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(60, 60, 60);
-        doc.text(`Tanggal: ${moment(izin.tanggal).format("DD MMMM YYYY")} (${moment(izin.tanggal).format("dddd")})`, 20, currentY + 28);
-        doc.text(`Keterangan: ${izin.keterangan}`, 20, currentY + 35);
-        doc.text(`Waktu Pengajuan: ${moment(izin.created_at).format("DD/MM/YYYY HH:mm")} WIB`, 20, currentY + 42);
+        doc.setFontSize(8);
+        doc.setTextColor(0, 0, 0);
+        
+        // Format: Label | Value | Label | Value
+        // Baris 1: Nama & Asal
+        doc.setFont("times", "bold");
+        doc.text("Nama:", bioX, bioY);
+        doc.setFont("times", "normal");
+        doc.text(person.nama, bioX + 12, bioY);
+        
+        doc.setFont("times", "bold");
+        doc.text(" | Asal:", bioX + 75, bioY);
+        doc.setFont("times", "normal");
+        doc.text(person.asal, bioX + 87, bioY);
+        
+        // Baris 2: Status & Keterangan
+        doc.setFont("times", "bold");
+        doc.text("Status:", bioX, bioY + 6);
+        doc.setFont("times", "normal");
+        const statusCapitalized = person.status.charAt(0).toUpperCase() + person.status.slice(1);
+        doc.text(statusCapitalized, bioX + 13, bioY + 6);
+        
+        doc.setFont("times", "bold");
+        doc.text(" | Detail:", bioX + 75, bioY + 6);
+        doc.setFont("times", "normal");
+        const keteranganText = person.keterangan || "-";
+        const maxKetWidth = pageWidth - 40 - bioX - 90;
+        const splitKet = doc.splitTextToSize(keteranganText, maxKetWidth);
+        doc.text(splitKet[0], bioX + 89, bioY + 6);
+        
+        currentY += biodataHeight + 5;
 
-        // Foto izin dengan frame
-        if (izin.foto_izin) {
-          doc.setFont("times", "bold");
-          doc.setFontSize(10);
-          doc.setTextColor(0, 146, 63);
-          doc.text("Bukti Foto Izin:", 20, currentY + 52);
+        // Loop setiap izin dalam kolom besar
+        for (let izinIdx = 0; izinIdx < person.izinList.length; izinIdx++) {
+          const izin = person.izinList[izinIdx];
+          const izinY = currentY + (izinIdx * izinItemHeight);
           
-          try {
-            // Frame untuk foto
-            doc.setDrawColor(200, 200, 200);
-            doc.setLineWidth(0.5);
-            doc.rect(20, currentY + 55, 60, 25);
-            
-            // Load dan tampilkan foto
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            
-            await new Promise((resolve, reject) => {
-              img.onload = () => {
-                try {
-                  doc.addImage(img, "JPEG", 20, currentY + 55, 60, 25);
-                  resolve(true);
-                } catch (e) {
-                  reject(e);
-                }
-              };
-              img.onerror = reject;
-              img.src = izin.foto_izin;
-            });
-            
-            // Caption foto
-            doc.setFont("times", "italic");
-            doc.setFontSize(8);
-            doc.setTextColor(100, 100, 100);
-            doc.text("Foto bukti izin terekam dalam sistem", 50, currentY + 82, { align: 'center' });
-          } catch (error) {
-            console.log("Error loading image:", error);
-            doc.setFont("times", "italic");
-            doc.setFontSize(9);
-            doc.setTextColor(150, 150, 150);
-            doc.text("(Foto tersimpan di sistem database)", 20, currentY + 68);
-            doc.text(`URL: ${izin.foto_izin.substring(0, 80)}...`, 20, currentY + 74, { maxWidth: 60 });
-          }
-        } else {
-          doc.setFont("times", "italic");
+          // Sub-kolom untuk setiap izin
+          doc.setFillColor(255, 255, 255);
+          doc.rect(23, izinY, pageWidth - 46, izinItemHeight - 3, 'F');
+          doc.setDrawColor(230, 230, 230);
+          doc.setLineWidth(0.8);
+          doc.roundedRect(23, izinY, pageWidth - 46, izinItemHeight - 3, 2, 2);
+          
+          // Badge nomor izin
+          doc.setFillColor(251, 146, 60);
+          doc.circle(32, izinY + 7, 5, 'F');
+          doc.setFont("times", "bold");
           doc.setFontSize(9);
-          doc.setTextColor(200, 100, 100);
-          doc.text("⚠️ Tidak ada foto bukti izin", 20, currentY + 55);
+          doc.setTextColor(255, 255, 255);
+          doc.text((izinIdx + 1).toString(), 32, izinY + 9, { align: 'center' });
+          
+          // Detail izin (kiri) - lebih kompak
+          const leftX = 42;
+          const rightPhotoX = pageWidth - 70;
+          
+          doc.setFont("times", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(251, 146, 60);
+          doc.text("Tanggal Izin:", leftX, izinY + 6);
+          doc.setFont("times", "normal");
+          doc.setFontSize(9);
+          doc.setTextColor(0, 0, 0);
+          const tanggalText = moment(izin.tanggal).format("dddd, DD MMMM YYYY");
+          doc.text(tanggalText, leftX + 25, izinY + 6);
+          
+          doc.setFont("times", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(251, 146, 60);
+          doc.text("Waktu Pengajuan:", leftX, izinY + 13);
+          doc.setFont("times", "normal");
+          doc.setFontSize(9);
+          doc.setTextColor(0, 0, 0);
+          doc.text(moment(izin.created_at).format("DD/MM/YYYY HH:mm") + " WIB", leftX + 32, izinY + 13);
+          
+          // Keterangan (dengan word wrap dan border)
+          doc.setFont("times", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(251, 146, 60);
+          doc.text("Alasan Izin:", leftX, izinY + 20);
+          
+          // Box untuk keterangan
+          doc.setFillColor(255, 250, 245);
+          doc.setDrawColor(251, 191, 143);
+          doc.setLineWidth(0.3);
+          doc.roundedRect(leftX, izinY + 23, rightPhotoX - leftX - 8, 32, 1, 1, 'FD');
+          
+          doc.setFont("times", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(60, 60, 60);
+          
+          // Word wrap untuk keterangan
+          const maxKeteranganWidth = rightPhotoX - leftX - 12;
+          const keteranganLines = doc.splitTextToSize(izin.keterangan, maxKeteranganWidth);
+          let keteranganStartY = izinY + 28;
+          const maxLines = 5;
+          
+          for (let i = 0; i < Math.min(keteranganLines.length, maxLines); i++) {
+            doc.text(keteranganLines[i], leftX + 3, keteranganStartY + (i * 4.5));
+          }
+          if (keteranganLines.length > maxLines) {
+            doc.setFont("times", "italic");
+            doc.setFontSize(7);
+            doc.text("... (terlalu panjang)", leftX + 3, keteranganStartY + (maxLines * 4.5));
+          }
+          
+          // Foto bukti (kanan) dengan frame yang lebih bagus
+          if (izin.foto_izin) {
+            // Label foto
+            doc.setFont("times", "bold");
+            doc.setFontSize(7);
+            doc.setTextColor(0, 146, 63);
+            doc.text("BUKTI FOTO", rightPhotoX + 20, izinY + 5, { align: 'center' });
+            
+            try {
+              // Frame foto dengan shadow effect
+              doc.setFillColor(240, 240, 240);
+              doc.roundedRect(rightPhotoX + 2, izinY + 9, 38, 50, 2, 2, 'F');
+              
+              doc.setDrawColor(0, 146, 63);
+              doc.setLineWidth(1.5);
+              doc.roundedRect(rightPhotoX, izinY + 7, 38, 50, 2, 2);
+              
+              const img = new Image();
+              img.crossOrigin = "anonymous";
+              
+              await new Promise((resolve, reject) => {
+                img.onload = () => {
+                  try {
+                    doc.addImage(img, "JPEG", rightPhotoX + 1, izinY + 8, 36, 48);
+                    resolve(true);
+                  } catch (e) {
+                    reject(e);
+                  }
+                };
+                img.onerror = reject;
+                img.src = izin.foto_izin;
+              });
+              
+              // Caption foto
+              doc.setFont("times", "italic");
+              doc.setFontSize(6);
+              doc.setTextColor(100, 100, 100);
+              doc.text("✓ Terverifikasi", rightPhotoX + 19, izinY + 61, { align: 'center' });
+            } catch (error) {
+              console.log("Error loading image:", error);
+              doc.setFont("times", "italic");
+              doc.setFontSize(7);
+              doc.setTextColor(150, 150, 150);
+              doc.text("Foto tidak", rightPhotoX + 19, izinY + 30, { align: 'center' });
+              doc.text("dapat dimuat", rightPhotoX + 19, izinY + 36, { align: 'center' });
+            }
+          } else {
+            doc.setFont("times", "italic");
+            doc.setFontSize(7);
+            doc.setTextColor(200, 100, 100);
+            doc.text("⚠️ Tidak ada", rightPhotoX + 19, izinY + 30, { align: 'center' });
+            doc.text("foto bukti", rightPhotoX + 19, izinY + 36, { align: 'center' });
+          }
         }
-
-        currentY += 90;
+        
+        currentY += (izinItemHeight * totalIzinPerson) + 10;
       }
       
       // Kesimpulan
-      if (currentY > 220) {
+      if (currentY > pageHeight - 80) {
         doc.addPage();
         currentY = 20;
       }
       
-      currentY += 10;
+      currentY += 5;
       doc.setFont("times", "bold");
-      doc.setFontSize(11);
+      doc.setFontSize(12);
       doc.setTextColor(0, 0, 0);
-      doc.text("Kesimpulan:", 15, currentY);
-      currentY += 7;
+      doc.text("KESIMPULAN", 15, currentY);
+      currentY += 10;
       
       doc.setFont("times", "normal");
       doc.setFontSize(10);
-      const kesimpulan = `Berdasarkan data di atas, tercatat ${izinData.length} pengajuan izin yang telah diverifikasi dengan bukti foto selama bulan ${bulan} ${tahun}. Semua izin telah tercatat dalam sistem presensi LDII BPKULON untuk keperluan dokumentasi dan evaluasi kehadiran.`;
+      const kesimpulan = `Berdasarkan dokumentasi di atas, tercatat ${totalOrang} anggota dengan total ${totalIzin} pengajuan izin yang telah diverifikasi dengan bukti foto dan biodata lengkap selama bulan ${bulan} ${tahun}. Semua izin telah tercatat dalam sistem presensi LDII BPKULON untuk keperluan dokumentasi dan evaluasi kehadiran.`;
       const splitKesimpulan = doc.splitTextToSize(kesimpulan, pageWidth - 30);
       doc.text(splitKesimpulan, 15, currentY);
       currentY += (splitKesimpulan.length * 5) + 10;
@@ -386,17 +560,20 @@ export default function ExportPDFMenu() {
     }
 
     addFooterNote(doc);
-    doc.save(`Daftar-Izin-${bulan}-${tahun}.pdf`);
+    doc.save(`Dokumentasi-Izin-${bulan}-${tahun}.pdf`);
   };
 
-  // PDF Generator - Lengkap (Rekap + Izin dengan FOTO TAMPIL)
+  // PDF Generator - Lengkap (Rekap + Izin dengan LAYOUT MODERN)
   const generateLengkapPDF = async (rekap: any[], izinData: any[], bulan: string, tahun: number) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
     const bulanAngka = String(moment().month(bulan).format("M")).padStart(2, '0');
     
-    const sorted = [...rekap].sort((a, b) => b.persentaseHadir - a.persentaseHadir);
+    const sorted = [...rekap].sort((a: any, b: any) => b.persentaseHadir - a.persentaseHadir);
     const tertinggi = sorted[0];
+    const totalOrang = izinData.length;
+    const totalIzin = izinData.reduce((sum, person) => sum + person.izinList.length, 0);
 
     addHeaderLengkap(doc, bulan, tahun, rekap.length, bulanAngka, "LAPORAN LENGKAP");
 
@@ -423,11 +600,11 @@ export default function ExportPDFMenu() {
     doc.setFontSize(10);
     const totalAnggota = rekap.length;
     const totalHadir = rekap.reduce((sum, r) => sum + r.jumlahHadir, 0);
-    const totalIzin = rekap.reduce((sum, r) => sum + r.jumlahIzin, 0);
+    const totalIzinCount = rekap.reduce((sum, r) => sum + r.jumlahIzin, 0);
     const totalTidakHadir = rekap.reduce((sum, r) => sum + r.jumlahTidakHadir, 0);
     const rataRata = Math.round(rekap.reduce((sum, r) => sum + r.persentaseHadir, 0) / totalAnggota);
     
-    const statistik = `Tercatat ${totalAnggota} anggota aktif dengan total ${totalHadir} kehadiran, ${totalIzin} izin, dan ${totalTidakHadir} ketidakhadiran. Persentase kehadiran rata-rata mencapai ${rataRata}%.`;
+    const statistik = `Tercatat ${totalAnggota} anggota aktif dengan total ${totalHadir} kehadiran, ${totalIzinCount} izin, dan ${totalTidakHadir} ketidakhadiran. Persentase kehadiran rata-rata mencapai ${rataRata}%.`;
     const splitStatistik = doc.splitTextToSize(statistik, pageWidth - 30);
     doc.text(splitStatistik, 15, currentY);
     currentY += (splitStatistik.length * 5) + 8;
@@ -474,105 +651,248 @@ export default function ExportPDFMenu() {
     doc.text(apresiasiTeks, 15, currentY);
     currentY += 12;
 
-    // BAGIAN 2: DAFTAR IZIN
-    if (currentY > 200) {
-      doc.addPage();
-      currentY = 20;
-    }
+    // BAGIAN 2: DAFTAR IZIN (hanya jika ada izin)
+    if (izinData.length > 0) {
+      if (currentY > pageHeight - 50) {
+        doc.addPage();
+        currentY = 20;
+      }
 
-    doc.setFont("times", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(251, 146, 60);
-    doc.text("II. DOKUMENTASI IZIN & BUKTI FOTO", 15, currentY);
-    doc.setTextColor(0, 0, 0);
-    currentY += 10;
+      doc.setFont("times", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(251, 146, 60);
+      doc.text("II. DOKUMENTASI IZIN & BUKTI FOTO", 15, currentY);
+      doc.setTextColor(0, 0, 0);
+      currentY += 10;
 
-    if (izinData.length === 0) {
-      doc.setFont("times", "italic");
-      doc.setFontSize(10);
-      doc.text("Tidak ada pengajuan izin pada bulan ini. Semua anggota hadir sesuai jadwal.", 15, currentY);
-      currentY += 15;
-    } else {
       doc.setFont("times", "normal");
       doc.setFontSize(10);
-      const introIzin = `Terdapat ${izinData.length} pengajuan izin yang telah diverifikasi dengan bukti foto sebagai berikut:`;
+      const introIzin = `Terdapat ${totalOrang} anggota dengan total ${totalIzin} pengajuan izin yang telah diverifikasi dengan bukti foto:`;
       doc.text(introIzin, 15, currentY);
       currentY += 10;
 
-      // Tampilkan setiap izin dengan foto
-      for (let i = 0; i < izinData.length; i++) {
-        const izin = izinData[i];
+      // Loop per nama (kolom besar)
+      for (let personIdx = 0; personIdx < izinData.length; personIdx++) {
+        const person = izinData[personIdx];
+        const totalIzinPerson = person.izinList.length;
         
-        if (currentY > 180) {
+        const headerHeight = 20;
+        const biodataHeight = 25;
+        const izinItemHeight = 85;
+        const totalHeight = headerHeight + biodataHeight + (izinItemHeight * totalIzinPerson) + 5;
+        
+        if (currentY + totalHeight > pageHeight - 40) {
           doc.addPage();
           currentY = 20;
         }
 
-        // Box izin
+        // KOLOM BESAR
         doc.setDrawColor(251, 146, 60);
-        doc.setLineWidth(1);
-        doc.roundedRect(15, currentY, pageWidth - 30, 75, 3, 3);
+        doc.setLineWidth(1.5);
+        doc.roundedRect(15, currentY, pageWidth - 30, totalHeight, 3, 3);
         
         // Header
         doc.setFillColor(251, 146, 60);
-        doc.roundedRect(15, currentY, 25, 10, 3, 3, 'F');
+        doc.roundedRect(15, currentY, pageWidth - 30, 15, 3, 3, 'F');
         doc.setFont("times", "bold");
-        doc.setFontSize(10);
+        doc.setFontSize(13);
         doc.setTextColor(255, 255, 255);
-        doc.text(`${i + 1}`, 27.5, currentY + 7, { align: 'center' });
-
-        // Detail izin
-        doc.setFont("times", "bold");
-        doc.setFontSize(11);
-        doc.setTextColor(0, 0, 0);
-        doc.text(izin.nama, 20, currentY + 19);
+        doc.text(`${personIdx + 1}. ${person.nama}`, 20, currentY + 10);
         
-        doc.setFont("times", "normal");
+        // Badge
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(pageWidth - 70, currentY + 3, 50, 9, 2, 2, 'F');
+        doc.setFont("times", "bold");
         doc.setFontSize(9);
-        doc.setTextColor(60, 60, 60);
-        doc.text(`Tanggal: ${moment(izin.tanggal).format("DD MMMM YYYY")}`, 20, currentY + 26);
-        doc.text(`Keterangan: ${izin.keterangan}`, 20, currentY + 32);
-        doc.text(`Diajukan: ${moment(izin.created_at).format("DD/MM HH:mm")}`, 20, currentY + 38);
+        doc.setTextColor(251, 146, 60);
+        doc.text(`${totalIzinPerson} Izin`, pageWidth - 45, currentY + 9, { align: 'center' });
+        
+        currentY += 18;
 
-        // Foto
-        if (izin.foto_izin) {
+        // BIODATA SECTION
+        doc.setFillColor(255, 248, 240);
+        doc.rect(20, currentY, pageWidth - 40, biodataHeight, 'F');
+        doc.setDrawColor(251, 191, 143);
+        doc.setLineWidth(0.5);
+        doc.rect(20, currentY, pageWidth - 40, biodataHeight);
+        
+        // Label Header Biodata
+        doc.setFont("times", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(251, 146, 60);
+        doc.text("BIODATA ANGGOTA", 25, currentY + 6);
+        
+        // Data biodata dalam layout baris horizontal
+        let bioX = 25;
+        const bioY = currentY + 15;
+        doc.setFont("times", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(0, 0, 0);
+        
+        // Format: Label | Value | Label | Value
+        // Baris 1: Nama & Asal
+        doc.setFont("times", "bold");
+        doc.text("Nama:", bioX, bioY);
+        doc.setFont("times", "normal");
+        doc.text(person.nama, bioX + 12, bioY);
+        
+        doc.setFont("times", "bold");
+        doc.text(" | Asal:", bioX + 75, bioY);
+        doc.setFont("times", "normal");
+        doc.text(person.asal, bioX + 87, bioY);
+        
+        // Baris 2: Status & Keterangan
+        doc.setFont("times", "bold");
+        doc.text("Status:", bioX, bioY + 6);
+        doc.setFont("times", "normal");
+        const statusCapitalized = person.status.charAt(0).toUpperCase() + person.status.slice(1);
+        doc.text(statusCapitalized, bioX + 13, bioY + 6);
+        
+        doc.setFont("times", "bold");
+        doc.text(" | Detail:", bioX + 75, bioY + 6);
+        doc.setFont("times", "normal");
+        const keteranganText = person.keterangan || "-";
+        const maxKetWidth = pageWidth - 40 - bioX - 90;
+        const splitKet = doc.splitTextToSize(keteranganText, maxKetWidth);
+        doc.text(splitKet[0], bioX + 89, bioY + 6);
+        
+        currentY += biodataHeight + 3;
+
+        // Loop izin
+        for (let izinIdx = 0; izinIdx < person.izinList.length; izinIdx++) {
+          const izin = person.izinList[izinIdx];
+          const izinY = currentY + (izinIdx * izinItemHeight);
+          
+          // Sub-kolom untuk setiap izin
+          doc.setFillColor(255, 255, 255);
+          doc.rect(23, izinY, pageWidth - 46, izinItemHeight - 3, 'F');
+          doc.setDrawColor(230, 230, 230);
+          doc.setLineWidth(0.8);
+          doc.roundedRect(23, izinY, pageWidth - 46, izinItemHeight - 3, 2, 2);
+          
+          // Badge nomor izin
+          doc.setFillColor(251, 146, 60);
+          doc.circle(32, izinY + 7, 5, 'F');
           doc.setFont("times", "bold");
           doc.setFontSize(9);
-          doc.setTextColor(251, 146, 60);
-          doc.text("Bukti Foto:", 20, currentY + 46);
+          doc.setTextColor(255, 255, 255);
+          doc.text((izinIdx + 1).toString(), 32, izinY + 9, { align: 'center' });
           
-          try {
-            doc.setDrawColor(200, 200, 200);
-            doc.rect(20, currentY + 48, 50, 22);
-            
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            
-            await new Promise((resolve, reject) => {
-              img.onload = () => {
-                try {
-                  doc.addImage(img, "JPEG", 20, currentY + 48, 50, 22);
-                  resolve(true);
-                } catch (e) {
-                  reject(e);
-                }
-              };
-              img.onerror = reject;
-              img.src = izin.foto_izin;
-            });
-          } catch (error) {
+          // Detail izin (kiri) - lebih kompak
+          const leftX = 42;
+          const rightPhotoX = pageWidth - 70;
+          
+          doc.setFont("times", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(251, 146, 60);
+          doc.text("Tanggal Izin:", leftX, izinY + 6);
+          doc.setFont("times", "normal");
+          doc.setFontSize(9);
+          doc.setTextColor(0, 0, 0);
+          const tanggalText = moment(izin.tanggal).format("dddd, DD MMMM YYYY");
+          doc.text(tanggalText, leftX + 25, izinY + 6);
+          
+          doc.setFont("times", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(251, 146, 60);
+          doc.text("Waktu Pengajuan:", leftX, izinY + 13);
+          doc.setFont("times", "normal");
+          doc.setFontSize(9);
+          doc.setTextColor(0, 0, 0);
+          doc.text(moment(izin.created_at).format("DD/MM/YYYY HH:mm") + " WIB", leftX + 32, izinY + 13);
+          
+          // Keterangan (dengan word wrap dan border)
+          doc.setFont("times", "bold");
+          doc.setFontSize(8);
+          doc.setTextColor(251, 146, 60);
+          doc.text("Alasan Izin:", leftX, izinY + 20);
+          
+          // Box untuk keterangan
+          doc.setFillColor(255, 250, 245);
+          doc.setDrawColor(251, 191, 143);
+          doc.setLineWidth(0.3);
+          doc.roundedRect(leftX, izinY + 23, rightPhotoX - leftX - 8, 32, 1, 1, 'FD');
+          
+          doc.setFont("times", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(60, 60, 60);
+          
+          // Word wrap untuk keterangan
+          const maxKeteranganWidth = rightPhotoX - leftX - 12;
+          const keteranganLines = doc.splitTextToSize(izin.keterangan, maxKeteranganWidth);
+          let keteranganStartY = izinY + 28;
+          const maxLines = 5;
+          
+          for (let i = 0; i < Math.min(keteranganLines.length, maxLines); i++) {
+            doc.text(keteranganLines[i], leftX + 3, keteranganStartY + (i * 4.5));
+          }
+          if (keteranganLines.length > maxLines) {
             doc.setFont("times", "italic");
             doc.setFontSize(7);
-            doc.text("(Foto tersimpan di database)", 20, currentY + 59);
+            doc.text("... (terlalu panjang)", leftX + 3, keteranganStartY + (maxLines * 4.5));
+          }
+          
+          // Foto bukti (kanan) dengan frame yang lebih bagus
+          if (izin.foto_izin) {
+            // Label foto
+            doc.setFont("times", "bold");
+            doc.setFontSize(7);
+            doc.setTextColor(0, 146, 63);
+            doc.text("BUKTI FOTO", rightPhotoX + 20, izinY + 5, { align: 'center' });
+            
+            try {
+              // Frame foto dengan shadow effect
+              doc.setFillColor(240, 240, 240);
+              doc.roundedRect(rightPhotoX + 2, izinY + 9, 38, 50, 2, 2, 'F');
+              
+              doc.setDrawColor(0, 146, 63);
+              doc.setLineWidth(1.5);
+              doc.roundedRect(rightPhotoX, izinY + 7, 38, 50, 2, 2);
+              
+              const img = new Image();
+              img.crossOrigin = "anonymous";
+              
+              await new Promise((resolve, reject) => {
+                img.onload = () => {
+                  try {
+                    doc.addImage(img, "JPEG", rightPhotoX + 1, izinY + 8, 36, 48);
+                    resolve(true);
+                  } catch (e) {
+                    reject(e);
+                  }
+                };
+                img.onerror = reject;
+                img.src = izin.foto_izin;
+              });
+              
+              // Caption foto
+              doc.setFont("times", "italic");
+              doc.setFontSize(6);
+              doc.setTextColor(100, 100, 100);
+              doc.text("✓ Terverifikasi", rightPhotoX + 19, izinY + 61, { align: 'center' });
+            } catch (error) {
+              console.log("Error loading image:", error);
+              doc.setFont("times", "italic");
+              doc.setFontSize(7);
+              doc.setTextColor(150, 150, 150);
+              doc.text("Foto tidak", rightPhotoX + 19, izinY + 30, { align: 'center' });
+              doc.text("dapat dimuat", rightPhotoX + 19, izinY + 36, { align: 'center' });
+            }
+          } else {
+            doc.setFont("times", "italic");
+            doc.setFontSize(7);
+            doc.setTextColor(200, 100, 100);
+            doc.text("Tidak ada", rightPhotoX + 19, izinY + 30, { align: 'center' });
+            doc.text("foto bukti", rightPhotoX + 19, izinY + 36, { align: 'center' });
           }
         }
-
-        currentY += 80;
+        
+        currentY += totalHeight + 8;
       }
     }
 
     // PENUTUP
-    if (currentY > 220) {
+    if (currentY > pageHeight - 80) {
       doc.addPage();
       currentY = 20;
     }
@@ -586,8 +906,10 @@ export default function ExportPDFMenu() {
     
     doc.setFont("times", "normal");
     doc.setFontSize(10);
-    const penutup = `Demikian laporan lengkap kehadiran dan dokumentasi izin bulan ${bulan} ${tahun} ini kami sampaikan. Semoga informasi ini dapat bermanfaat untuk evaluasi dan peningkatan partisipasi kegiatan Remaja LDII BPKULON ke depannya.`;
-    const splitPenutup = doc.splitTextToSize(penutup, pageWidth - 30);
+    const penutupText = izinData.length > 0 
+      ? `Demikian laporan lengkap kehadiran dan dokumentasi ${totalIzin} izin dari ${totalOrang} anggota bulan ${bulan} ${tahun} ini kami sampaikan. Semoga informasi ini dapat bermanfaat untuk evaluasi dan peningkatan partisipasi kegiatan Remaja LDII BPKULON ke depannya.`
+      : `Demikian laporan lengkap kehadiran bulan ${bulan} ${tahun} ini kami sampaikan. Perlu dicatat bahwa pada bulan ini tidak ada pengajuan izin, semua anggota hadir sesuai jadwal yang telah ditetapkan.`;
+    const splitPenutup = doc.splitTextToSize(penutupText, pageWidth - 30);
     doc.text(splitPenutup, 15, currentY);
     currentY += (splitPenutup.length * 5) + 10;
 
