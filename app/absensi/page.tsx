@@ -27,6 +27,7 @@
     const [isLoading, setIsLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showIzinModal, setShowIzinModal] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
 
     // Fix hydration mismatch - initialize with null and set in useEffect
     const [bulan, setBulan] = useState<number | null>(null);
@@ -56,7 +57,13 @@
         .select("*")
         .eq("username", logged)
         .single()
-        .then(({ data }) => setUser(data));
+        .then(({ data }) => {
+            setUser(data);
+            // Set admin status
+            if (data) {
+                setIsAdmin(data.is_admin || false);
+            }
+        });
     }, []);
 
     // Fetch today's attendance when today is set
@@ -643,14 +650,31 @@
                                     <div className="text-xs font-semibold text-orange-700 mb-1">Alasan:</div>
                                     <div className="text-sm text-gray-700">{item.keterangan || "Tidak ada keterangan"}</div>
                                 </div>
-                                {item.foto_izin && (
+                                {/* Foto Izin - Hanya untuk Admin */}
+                                {isAdmin ? (
+                                    item.foto_izin && (
                                     <div className="mt-2">
-                                    <img 
+                                        <div className="text-xs font-semibold text-gray-700 mb-1">Foto Bukti:</div>
+                                        <img 
                                         src={item.foto_izin} 
                                         alt="Foto Izin" 
                                         className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg border-2 border-orange-200 cursor-pointer hover:scale-105 transition-transform"
                                         onClick={() => window.open(item.foto_izin, '_blank')}
-                                    />
+                                        />
+                                    </div>
+                                    )
+                                ) : (
+                                    <div className="mt-2 bg-gray-100 border-2 border-gray-300 rounded-lg p-3 flex items-center space-x-3">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <span className="text-2xl">📷</span>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs font-semibold text-gray-700 mb-0.5">Foto Bukti Izin</div>
+                                        <div className="flex items-center space-x-1 text-purple-600">
+                                        <span className="text-sm">👑</span>
+                                        <span className="text-xs font-medium">Admin Only</span>
+                                        </div>
+                                    </div>
                                     </div>
                                 )}
                                 </div>
