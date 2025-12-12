@@ -49,12 +49,18 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: baseUrl,
-    siteName: "Presensi Generus LDII BP Kulon", // Memberitahu Google nama situs ini Presensi MUMI
+    siteName: "Presensi Generus LDII BP Kulon",
     title: "Sistem Presensi Generus LDII BP Kulon",
     description:
       "Sistem presensi digital resmi Generus LDII BPKULON Gresik. Mudah, Cepat, Aman. Developed by ence",
-    // Catatan: Next.js akan otomatis mencari file 'opengraph-image.png' di folder app
-    // Jadi kita tidak perlu menulis url gambar manual di sini.
+    images: [
+      {
+        url: "/logo-ldii.png",
+        width: 512,
+        height: 512,
+        alt: "Logo LDII BPKULON",
+      },
+    ],
   },
 
   twitter: {
@@ -94,6 +100,17 @@ export default function RootLayout({
   return (
     <html lang="id">
       <head>
+        {/* Manifest untuk PWA */}
+        <link rel="manifest" href="/manifest.json" />
+        
+        {/* PWA Meta Tags */}
+        <meta name="theme-color" content="#22c55e" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="LDII BPKULON" />
+        
         {/* Google Analytics */}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-9VRC4Z4SB0"

@@ -1,24 +1,72 @@
 {
-  "name": "LDII BPKULON",
+  "name": "Sistem Presensi Generus LDII BP Kulon",
   "short_name": "LDII BPKULON",
-  "description": "Sistem Presensi LDII BPKULON",
+  "description": "Sistem Presensi Generus LDII BPKULON - Mudah, Cepat, dan Aman",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#22c55e",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
+  "scope": "/",
   "icons": [
     {
       "src": "/logo-ldii.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-ldii.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/logo-ldii.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-ldii.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/logo-ldii.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-ldii.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/logo-ldii.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Lihat Presensi",
+      "short_name": "Presensi",
+      "description": "Lihat data presensi Anda",
+      "url": "/absensi",
+      "icons": [
+        {
+          "src": "/logo-ldii.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }
