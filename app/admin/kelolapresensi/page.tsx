@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import RekapPresensi from "./RekapPresensi";
+import RekapHariIni from "./RekapHariIni";
 import KelolaIzin from "./KelolaIzin";
 import ExportPDFMenu from "./ExportPDFMenu";
 import moment from "moment";
@@ -308,6 +309,9 @@ export default function KelolaPresensiPage() {
 
           {/* Daftar Izin */}
           <KelolaIzin />
+
+          {/* Rekap Presensi Hari Ini (REAL-TIME) */}
+          <RekapHariIni />
 
           {/* Export PDF Menu */}
           <ExportPDFMenu />
