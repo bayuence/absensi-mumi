@@ -52,21 +52,21 @@ export default function RekapHariIni() {
 
       if (usersError) {
         console.error("Error fetching users - Details:", usersError);
-        setError(`Gagal mengambil data karyawan: ${usersError.message}`);
+        setError(`Gagal mengambil data Anggota: ${usersError.message}`);
         setRekapData([]);
         setLoading(false);
         return;
       }
 
       if (!allUsers || allUsers.length === 0) {
-        console.warn("Tidak ada data karyawan ditemukan");
+        console.warn("Tidak ada data Anggota ditemukan");
         setRekapData([]);
         setStats({ total: 0, hadir: 0, izin: 0, tidakHadir: 0 });
         setLoading(false);
         return;
       }
 
-      console.log(`✅ Berhasil fetch ${allUsers.length} karyawan`);
+      console.log(`✅ Berhasil fetch ${allUsers.length} Anggota`);
 
       // 2. Get semua presensi untuk tanggal terpilih
       const { data: absensiData, error: absensiError } = await supabase
@@ -93,7 +93,7 @@ export default function RekapHariIni() {
 
       console.log(`✅ Berhasil fetch ${izinData?.length || 0} izin untuk ${selectedDate}`);
 
-      // 4. Map semua data karyawan dengan status mereka
+      // 4. Map semua data anggota dengan status mereka
       const rekapArray: UserRecap[] = allUsers.map((user: any) => {
         // Cek apakah presensi hari ini (HADIR)
         const presensi = absensiData?.find(
@@ -168,9 +168,9 @@ export default function RekapHariIni() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "HADIR":
-        return "✅";
+        return "";
       case "IZIN":
-        return "⏸️";
+        return "";
       case "TIDAK_HADIR":
         return "";
       default:
@@ -233,7 +233,7 @@ export default function RekapHariIni() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-xl p-4 text-center">
           <div className="text-2xl sm:text-3xl font-bold text-blue-700">{stats.total}</div>
-          <div className="text-xs sm:text-sm text-blue-600 font-medium mt-1">Total Karyawan</div>
+          <div className="text-xs sm:text-sm text-blue-600 font-medium mt-1">Total Anggota</div>
         </div>
         <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 rounded-xl p-4 text-center">
           <div className="text-2xl sm:text-3xl font-bold text-green-700">{stats.hadir}</div>
@@ -268,7 +268,7 @@ export default function RekapHariIni() {
       ) : rekapData.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">📭</div>
-          <p className="text-slate-500 text-lg">Belum ada data karyawan</p>
+          <p className="text-slate-500 text-lg">Belum ada data Anggota</p>
           <p className="text-slate-400 text-sm mt-2">untuk tanggal {moment(selectedDate).format("DD MMMM YYYY")}</p>
         </div>
       ) : (
@@ -352,9 +352,9 @@ export default function RekapHariIni() {
           <div>
             <h3 className="text-blue-800 font-semibold mb-1">Cara Membaca Rekap</h3>
             <ul className="text-blue-700 text-xs sm:text-sm space-y-1">
-              <li>• <span className="font-bold">✅ Hadir</span>: Karyawan sudah melakukan presensi</li>
-              <li>• <span className="font-bold">⏸️ Izin</span>: Karyawan memiliki surat izin yang sudah diapprove</li>
-              <li>• <span className="font-bold">❌ Tidak Hadir</span>: Karyawan belum presensi dan tidak ada izin</li>
+              <li>• <span className="font-bold">✅ Hadir</span>: Anggota sudah melakukan presensi</li>
+              <li>• <span className="font-bold">⏸️ Izin</span>: Anggota memiliki surat izin yang sudah diapprove</li>
+              <li>• <span className="font-bold">❌ Tidak Hadir</span>: Anggota belum presensi dan tidak ada izin</li>
               <li>• <span className="font-bold">🔄 Real-time</span>: Data di-update otomatis saat ada perubahan</li>
               <li>• <span className="font-bold">📅 Fleksibel</span>: Pilih tanggal apa pun untuk melihat rekap hari tersebut</li>
             </ul>
