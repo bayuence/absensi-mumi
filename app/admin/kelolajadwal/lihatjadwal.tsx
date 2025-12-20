@@ -106,12 +106,15 @@ export default function LihatJadwal({ jadwalList, onRefresh }: LihatJadwalProps)
     const endDate = endOfMonth.clone().endOf('week');
 
     const calendar = [];
-    const day = startDate.clone();
+    let day = startDate.clone();
 
     while (day.isBefore(endDate, 'day')) {
-      calendar.push(
-        Array(7).fill(0).map(() => day.add(1, 'day').clone())
-      );
+      const week = [];
+      for (let i = 0; i < 7; i++) {
+        week.push(day.clone());
+        day.add(1, 'day');
+      }
+      calendar.push(week);
     }
 
     return calendar;
