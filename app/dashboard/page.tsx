@@ -5,13 +5,17 @@ import { createClient } from "@supabase/supabase-js";
 import Navbar from "@/components/Navbar";
 import ProfileModal from "./ProfileModal";
 import moment from "moment";
-import "moment/locale/id";    const supabase = createClient(
+import "moment/locale/id";
+
+const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+);
 
-    export default function Dashboard() {
+export default function DashboardPage() {
     const [user, setUser] = useState<any>(null);
+    // Notifikasi prompt state
+    const [showNotifPrompt, setShowNotifPrompt] = useState(false);
     const [todaySchedule, setTodaySchedule] = useState<any[]>([]);
     const [nextSchedule, setNextSchedule] = useState<any[]>([]);
     const [pengumuman, setPengumuman] = useState<any>(null);
@@ -25,19 +29,19 @@ import "moment/locale/id";    const supabase = createClient(
 
     useEffect(() => {
         const fetchData = async () => {
-        try {
-            // ambil user login
-            const username = localStorage.getItem("loggedUser");
-            if (!username) {
-            setError("❌ Pengguna belum login.");
-            return;
-            }
+            try {
+                // ambil user login
+                const username = localStorage.getItem("loggedUser");
+                if (!username) {
+                    setError("❌ Pengguna belum login.");
+                    return;
+                }
 
-            const { data: userData } = await supabase
-            .from("users")
-            .select("*")
-            .eq("username", username)
-            .single();
+                const { data: userData } = await supabase
+                    .from("users")
+                    .select("*")
+                    .eq("username", username)
+                    .single();
 
             if (!userData) {
             setError("❌ Gagal memuat data pengguna.");
@@ -100,32 +104,63 @@ import "moment/locale/id";    const supabase = createClient(
         };
 
         fetchData();
+
+        // === PROMPT NOTIFIKASI ===
+        if (typeof window !== 'undefined') {
+          const permission = Notification?.permission;
+          const lastPrompt = localStorage.getItem('lastNotifPrompt');
+          const now = Date.now();
+          if (permission !== 'granted') {
+            if (!lastPrompt || now - Number(lastPrompt) > 24 * 60 * 60 * 1000) {
+              setShowNotifPrompt(true);
+            }
+          }
+        }
     }, []);
 
     const sortedUsers = [...userList].sort((a, b) =>
         a.nama.localeCompare(b.nama)
     );
 
-    return (
-        <>
-        <Navbar />
-        <main className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 px-4 py-6 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto">
-            {/* Header Welcome */}
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8 mb-8 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 opacity-5"></div>
-                <div className="relative">
-                <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg border border-gray-200">
-                    <img 
-                        src="/logo-ldii.png" 
-                        alt="Logo LDII" 
-                        className="w-10 h-10 object-contain"
-                    />
+        // Handler untuk meminta izin notifikasi
+        const handleRequestNotif = async () => {
+            if (typeof window !== 'undefined' && 'Notification' in window) {
+                await Notification.requestPermission();
+                localStorage.setItem('lastNotifPrompt', Date.now().toString());
+                setShowNotifPrompt(false);
+            }
+        };
+
+        return (
+            <>
+                <Navbar />
+                {/* Prompt Notifikasi */}
+                {showNotifPrompt && (
+                    <div className="fixed z-50 bottom-4 right-4 bg-white border shadow-lg p-4 rounded-xl flex flex-col items-center gap-2 animate-fade-in">
+                        <span className="text-2xl">🔔</span>
+                        <p className="text-slate-700 font-semibold">Aktifkan notifikasi agar tidak ketinggalan info penting!</p>
+                        <button onClick={handleRequestNotif} className="mt-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-medium transition-all">
+                            Aktifkan Notifikasi
+                        </button>
                     </div>
-                    <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                        Selamat Datang di MUMI BP Kulon
+                )}
+                <main className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 px-4 py-6 sm:px-6 lg:px-8">
+                    <div className="max-w-7xl mx-auto">
+                        {/* Header Welcome */}
+                        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8 mb-8 relative overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 opacity-5"></div>
+                            <div className="relative">
+                                <div className="flex items-center space-x-3 mb-4">
+                                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg border border-gray-200">
+                                        <img 
+                                            src="/logo-ldii.png" 
+                                            alt="Logo LDII" 
+                                            className="w-10 h-10 object-contain"
+                                        />
+                                    </div>
+                                    <div>
+                                        <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                                            Selamat Datang di MUMI BP Kulon
                     </h1>
                     <p className="text-sm text-gray-500 mt-1">
                         {moment().locale('id').format('dddd, DD MMMM YYYY')}
@@ -470,3 +505,4 @@ import "moment/locale/id";    const supabase = createClient(
         </>
     );
     }
+    
