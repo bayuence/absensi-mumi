@@ -100,6 +100,8 @@ export default function RootLayout({
   return (
     <html lang="id">
       <head>
+        {/* Google Site Verification */}
+        <meta name="google-site-verification" content="6kO-dYQCtOZ7n1n2a3sCSmpHGQrCvmyNughcX793fYk" />
         {/* Manifest untuk PWA */}
         <link rel="manifest" href="/manifest.json" />
         
