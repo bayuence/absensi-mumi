@@ -1,6 +1,13 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// Fungsi untuk sanitasi karakter non-ASCII
+function sanitizeText(text: string): string {
+  if (!text) return "";
+  // Hapus karakter non-ASCII
+  return text.replace(/[^\x20-\x7E]/g, "");
+}
+
 interface RekapData {
   nama: string;
   jumlahHadir: number;
@@ -26,36 +33,43 @@ export const exportRekapToPDF = (
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
-  
+
   // === ANALISIS DATA: Tertinggi & Terendah ===
-  const sorted = [...rekap].sort((a, b) => b.persentaseHadir - a.persentaseHadir);
+  // Terapkan sanitasi pada nama dan keterangan
+  const sanitizedRekap = rekap.map((item) => ({
+    ...item,
+    nama: sanitizeText(item.nama),
+    // Jika ada field keterangan/izin, tambahkan di sini
+    // keterangan: sanitizeText(item.keterangan),
+  }));
+  const sorted = [...sanitizedRekap].sort((a, b) => b.persentaseHadir - a.persentaseHadir);
   const tertinggi = sorted[0];
   const terendah = sorted.slice(-3).reverse(); // 3 terendah
-  
+
   // Load logo LDII
   const logoLDII = "/logo-ldii.png";
-  
+
   // === NOMOR DOKUMEN (Kanan Atas) ===
   doc.setFont("times", "normal");
   doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
-  
+
   // Gunakan bulan yang sedang dilihat user, bukan bulan sekarang
   const bulanAngka = String(getBulanIndex(bulanNama) + 1).padStart(2, '0');
-  const nomorDokumen = `Nomor: ${String(rekap.length).padStart(3, '0')}/LDII-BPK/${bulanAngka}/${tahun}`;
+  const nomorDokumen = `Nomor: ${String(sanitizedRekap.length).padStart(3, '0')}/LDII-BPK/${bulanAngka}/${tahun}`;
   doc.text(nomorDokumen, pageWidth - 15, 12, { align: 'right' });
-  
+
   try {
     // Logo LDII di kiri atas (berwarna)
     doc.addImage(logoLDII, "PNG", 15, 10, 30, 30);
   } catch (error) {
     console.log("Logo tidak dapat dimuat");
   }
-  
+
   // === KOP SURAT ===
   // Set font untuk kop surat
   doc.setFont("times", "bold");
-  
+
   // LEMBAGA DAKWAH ISLAM INDONESIA (LDII) - dimulai setelah logo + jarak 50
   doc.setFontSize(16);
   doc.setTextColor(0, 146, 63); // Hijau LDII #00923F
@@ -64,14 +78,14 @@ export const exportRekapToPDF = (
   let startX = 50; // Mulai setelah logo + margin 5
   let centerX = startX + ((pageWidth - 15 - startX) / 2); // Center dari sisa area
   doc.text(text, centerX - (textWidth / 2), 18);
-  
+
   // KEPENGURUSAN REMAJA LDII BPKULON
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
   text = "KEPENGURUSAN REMAJA LDII BPKULON";
   textWidth = doc.getTextWidth(text);
   doc.text(text, centerX - (textWidth / 2), 26);
-  
+
   // Alamat
   doc.setFont("times", "normal");
   doc.setFontSize(10);

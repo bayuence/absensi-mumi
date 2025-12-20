@@ -1,7 +1,14 @@
+
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import moment from "moment";
 import "moment/locale/id";
+
+// Fungsi untuk sanitasi karakter non-ASCII
+function sanitizeText(text: string): string {
+  if (!text) return "";
+  return text.replace(/[^\x20-\x7E]/g, "");
+}
 
 interface RekapHariIniData {
   nama: string;
@@ -121,11 +128,11 @@ export const exportRekapHariIniToPDF = (
   // Siapkan data untuk tabel
   const tableBody = rekapData.map((item, index) => [
     (index + 1).toString(),
-    item.nama.toUpperCase(),
-    item.asal || "-",
-    (item.status || "-") + (item.keterangan_status && item.keterangan_status !== "-" ? ` • ${item.keterangan_status}` : ""),
+    sanitizeText(item.nama).toUpperCase(),
+    sanitizeText(item.asal || "-"),
+    sanitizeText(item.status || "-") + (item.keterangan_status && item.keterangan_status !== "-" ? ` • ${sanitizeText(item.keterangan_status)}` : ""),
     getStatusDisplay(item.status_presensi),
-    getKeteranganDisplay(item)
+    sanitizeText(getKeteranganDisplay(item))
   ]);
   
   autoTable(doc, {
