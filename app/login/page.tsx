@@ -1,6 +1,6 @@
     'use client';
 
-    import { useState } from 'react';
+    import { useState, useEffect } from 'react';
     import { createClient } from '@supabase/supabase-js';
     import { useRouter } from 'next/navigation';
 
@@ -13,8 +13,18 @@
     type ViewMode = 'login' | 'register';
 
     export default function LoginPage() {
-    const router = useRouter();
-    const [viewMode, setViewMode] = useState<ViewMode>('login');
+        const router = useRouter();
+        const [viewMode, setViewMode] = useState<ViewMode>('login');
+
+        // Cek jika sudah login, langsung redirect ke dashboard
+        useEffect(() => {
+            if (typeof window !== 'undefined') {
+                const loggedUser = localStorage.getItem('user');
+                if (loggedUser) {
+                    router.replace('/dashboard');
+                }
+            }
+        }, [router]);
     
     // Form data untuk login
     const [loginData, setLoginData] = useState({
