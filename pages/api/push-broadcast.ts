@@ -23,7 +23,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { title, body, icon } = req.body;
     // Get all subscriptions (in-memory for demo)
     // In production, fetch from DB
-    const subsRes = await fetch('http://localhost:3000/api/push-subscribe');
+    const baseUrl = req.headers.host?.startsWith('localhost')
+      ? 'http://localhost:3000'
+      : 'https://presensimumi.vercel.app';
+    const subsRes = await fetch(`${baseUrl}/api/push-subscribe`);
     const allSubs = await subsRes.json();
     let success = 0, fail = 0;
     await Promise.all(
