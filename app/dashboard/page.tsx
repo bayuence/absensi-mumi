@@ -27,96 +27,140 @@ export default function DashboardPage() {
 
     const today = moment().format("YYYY-MM-DD");
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                // ambil user login
-                const username = localStorage.getItem("loggedUser");
-                if (!username) {
-                    setError("❌ Pengguna belum login.");
-                    return;
+        useEffect(() => {
+                const fetchData = async () => {
+                        try {
+                                // ambil user login
+                                const username = localStorage.getItem("loggedUser");
+                                if (!username) {
+                                        setError("❌ Pengguna belum login.");
+                                        return;
+                                }
+
+                                const { data: userData } = await supabase
+                                        .from("users")
+                                        .select("*")
+                                        .eq("username", username)
+                                        .single();
+
+                        if (!userData) {
+                        setError("❌ Gagal memuat data pengguna.");
+                        return;
+                        }
+                        setUser(userData);
+
+                        // ambil semua user
+                        const { data: allUsers } = await supabase.from("users").select("*");
+                        setUserList(allUsers || []);
+
+                        // ambil jadwal hari ini
+                        const { data: todayData } = await supabase
+                        .from("jadwal_guru")
+                        .select("*")
+                        .eq("tanggal", today);
+
+                        setTodaySchedule(todayData || []);
+
+                        // ambil jadwal setelah hari ini
+                        const { data: nextData } = await supabase
+                        .from("jadwal_guru")
+                        .select("*")
+                        .gt("tanggal", today)
+                        .order("tanggal", { ascending: true })
+                        .limit(1);
+
+                        setNextSchedule(nextData || []);
+
+                        // ambil pengumuman terbaru - PERBAIKAN
+                        const { data: pengumumanData, error: pengumumanError } = await supabase
+                        .from("pengumuman")
+                        .select("*")
+                        .order("created_at", { ascending: false })
+                        .limit(1);
+
+                        if (!pengumumanError && pengumumanData && pengumumanData.length > 0) {
+                        setPengumuman(pengumumanData[0]);
+                        } else {
+                        setPengumuman(null);
+                        }
+
+                        // ambil materi terakhir - PERBAIKAN
+                        const { data: materiData, error: materiError } = await supabase
+                        .from("materi")
+                        .select("*")
+                        .order("created_at", { ascending: false })
+                        .limit(1);
+
+                        if (!materiError && materiData && materiData.length > 0) {
+                        setMateriTerakhir(materiData[0]);
+                        } else {
+                        setMateriTerakhir(null);
+                        }
+
+                } catch (err) {
+                        console.error("Gagal mengambil data:", err);
+                        setError("❌ Terjadi kesalahan saat memuat data.");
                 }
+                };
 
-                const { data: userData } = await supabase
-                    .from("users")
-                    .select("*")
-                    .eq("username", username)
-                    .single();
+                fetchData();
 
-            if (!userData) {
-            setError("❌ Gagal memuat data pengguna.");
-            return;
+                // === PROMPT NOTIFIKASI & SW REGISTRATION ===
+                if (typeof window !== 'undefined') {
+                    const permission = Notification?.permission;
+                    const lastPrompt = localStorage.getItem('lastNotifPrompt');
+                    const now = Date.now();
+                    if (permission !== 'granted') {
+                        if (!lastPrompt || now - Number(lastPrompt) > 24 * 60 * 60 * 1000) {
+                            setShowNotifPrompt(true);
+                        }
+                    } else {
+                        // Register service worker & subscribe push
+                        if ('serviceWorker' in navigator && 'PushManager' in window) {
+                            navigator.serviceWorker.register('/service-worker.js').then(async reg => {
+                                // Subscribe user if not yet
+                                const existing = await reg.pushManager.getSubscription();
+                                if (!existing) {
+                                    // VAPID public key (replace with your own if needed)
+                                    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+                                    if (vapidPublicKey) {
+                                        const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
+                                        reg.pushManager.subscribe({
+                                            userVisibleOnly: true,
+                                            applicationServerKey: convertedVapidKey
+                                        }).then(async sub => {
+                                            // Send subscription to backend
+                                            try {
+                                                await fetch('/api/push-subscribe', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify(sub)
+                                                });
+                                                localStorage.setItem('pushSubscription', JSON.stringify(sub));
+                                            } catch (e) {
+                                                // fallback: still save locally
+                                                localStorage.setItem('pushSubscription', JSON.stringify(sub));
+                                            }
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+        }, []);
+
+        // Helper: VAPID key conversion
+        function urlBase64ToUint8Array(base64String: string) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
             }
-            setUser(userData);
-
-            // ambil semua user
-            const { data: allUsers } = await supabase.from("users").select("*");
-            setUserList(allUsers || []);
-
-            // ambil jadwal hari ini
-            const { data: todayData } = await supabase
-            .from("jadwal_guru")
-            .select("*")
-            .eq("tanggal", today);
-
-            setTodaySchedule(todayData || []);
-
-            // ambil jadwal setelah hari ini
-            const { data: nextData } = await supabase
-            .from("jadwal_guru")
-            .select("*")
-            .gt("tanggal", today)
-            .order("tanggal", { ascending: true })
-            .limit(1);
-
-            setNextSchedule(nextData || []);
-
-            // ambil pengumuman terbaru - PERBAIKAN
-            const { data: pengumumanData, error: pengumumanError } = await supabase
-            .from("pengumuman")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-            if (!pengumumanError && pengumumanData && pengumumanData.length > 0) {
-            setPengumuman(pengumumanData[0]);
-            } else {
-            setPengumuman(null);
-            }
-
-            // ambil materi terakhir - PERBAIKAN
-            const { data: materiData, error: materiError } = await supabase
-            .from("materi")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-            if (!materiError && materiData && materiData.length > 0) {
-            setMateriTerakhir(materiData[0]);
-            } else {
-            setMateriTerakhir(null);
-            }
-
-        } catch (err) {
-            console.error("Gagal mengambil data:", err);
-            setError("❌ Terjadi kesalahan saat memuat data.");
+            return outputArray;
         }
-        };
-
-        fetchData();
-
-        // === PROMPT NOTIFIKASI ===
-        if (typeof window !== 'undefined') {
-          const permission = Notification?.permission;
-          const lastPrompt = localStorage.getItem('lastNotifPrompt');
-          const now = Date.now();
-          if (permission !== 'granted') {
-            if (!lastPrompt || now - Number(lastPrompt) > 24 * 60 * 60 * 1000) {
-              setShowNotifPrompt(true);
-            }
-          }
-        }
-    }, []);
 
     const sortedUsers = [...userList].sort((a, b) =>
         a.nama.localeCompare(b.nama)
