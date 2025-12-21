@@ -1,16 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import supabase from "@/lib/supabaseClient";
 import moment from "moment";
 import "moment/locale/id";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+
 
 export default function ExportPDFMenu() {
   const [bulan, setBulan] = useState(new Date().getMonth());

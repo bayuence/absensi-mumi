@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import supabase from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import RekapPresensi from "./RekapPresensi";
@@ -11,10 +11,7 @@ import ExportPDFMenu from "./ExportPDFMenu";
 import moment from "moment";
 import "moment/locale/id";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+
 
 interface AbsensiData {
   id: number;

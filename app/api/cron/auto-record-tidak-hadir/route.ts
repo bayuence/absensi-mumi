@@ -1,14 +1,11 @@
 // API Route untuk Auto Record Tidak Hadir
 // File: app/api/cron/auto-record-tidak-hadir/route.ts
 
-import { createClient } from "@supabase/supabase-js";
+import supabase from "@/lib/supabaseClient";
 import { NextResponse } from "next/server";
 import moment from "moment-timezone";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // Gunakan service role key
-);
+
 
 export async function GET(request: Request) {
   // Validasi secret key untuk keamanan

@@ -1,7 +1,7 @@
     "use client";
 
     import { useEffect, useState } from "react";
-    import { createClient } from "@supabase/supabase-js";
+import supabase from "@/lib/supabaseClient";
     import moment from "moment-timezone";
     import "moment/locale/id";
     import Navbar from "@/components/Navbar";
@@ -12,10 +12,7 @@
     moment.tz.setDefault("Asia/Jakarta");
     moment.locale("id");
 
-    const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+
 
     export default function PresensiPage() {
     const [kodeGuru, setKodeGuru] = useState("");

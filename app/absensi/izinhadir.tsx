@@ -1,17 +1,14 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
+import supabase from "@/lib/supabaseClient";
 import moment from "moment-timezone";
 
 // Set timezone to Jakarta
 moment.tz.setDefault("Asia/Jakarta");
 moment.locale("id");
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+
 
 interface IzinHadirProps {
   onClose: () => void;
