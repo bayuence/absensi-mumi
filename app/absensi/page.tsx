@@ -52,7 +52,7 @@ import supabase from "@/lib/supabaseClient";
         supabase
         .from("users")
         .select("*")
-        .eq("username", logged)
+        .eq("username", logged && logged.trim())
         .single()
         .then(({ data }) => {
             setUser(data);
@@ -266,7 +266,7 @@ import supabase from "@/lib/supabaseClient";
         const { data: sudahAbsen } = await supabase
         .from("absensi")
         .select("*")
-        .eq("username", user.username)
+        .eq("username", user.username && user.username.trim())
         .eq("tanggal", today)
         .maybeSingle();
 

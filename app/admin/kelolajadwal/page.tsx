@@ -36,7 +36,7 @@ export default function KelolaJadwalGuruPage() {
       const { data } = await supabase
         .from("users")
         .select("is_admin")
-        .eq("username", user.username)
+        .eq("username", user.username.trim())
         .single();
       
       if (!data?.is_admin) {

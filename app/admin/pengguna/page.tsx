@@ -36,7 +36,7 @@ export default function PenggunaPage() {
       const { data } = await supabase
         .from("users")
         .select("is_admin")
-        .eq("username", user.username)
+        .eq("username", user.username.trim())
         .single();
       
       if (!data?.is_admin) {
@@ -77,7 +77,7 @@ export default function PenggunaPage() {
     const { error } = await supabase
       .from("users")
       .delete()
-      .eq("username", username);
+      .eq("username", username.trim());
 
     if (error) {
       alert("Gagal menghapus pengguna: " + error.message);

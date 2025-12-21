@@ -116,7 +116,7 @@ export default function ExportPDFMenu() {
           const { data: userData } = await supabase
             .from("users")
             .select("nama, asal, status, keterangan")
-            .eq("username", username)
+            .eq("username", username.trim())
             .single();
           
           return {

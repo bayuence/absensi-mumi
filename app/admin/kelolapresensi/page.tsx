@@ -44,7 +44,7 @@ export default function KelolaPresensiPage() {
       const { data } = await supabase
         .from("users")
         .select("is_admin")
-        .eq("username", user.username)
+        .eq("username", user.username.trim())
         .single();
       
       if (!data?.is_admin) {
@@ -93,7 +93,7 @@ export default function KelolaPresensiPage() {
             const { data: userData } = await supabase
               .from("users")
               .select("asal, jabatan, foto_profil")
-              .eq("username", item.username)
+              .eq("username", item.username.trim())
               .single();
 
             return {

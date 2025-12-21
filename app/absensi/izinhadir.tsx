@@ -126,7 +126,7 @@ export default function IzinHadir({ onClose, onSuccess }: IzinHadirProps) {
       const { data: existingData } = await supabase
         .from("absensi")
         .select("*")
-        .eq("username", user.username)
+        .eq("username", user.username && user.username.trim())
         .eq("tanggal", today)
         .maybeSingle();
 

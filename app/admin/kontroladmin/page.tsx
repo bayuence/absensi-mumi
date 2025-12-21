@@ -38,7 +38,7 @@ export default function KontrolAdminPage() {
         const { data } = await supabase
           .from("users")
           .select("is_admin")
-          .eq("username", user.username)
+          .eq("username", user.username.trim())
           .single();
         
         if (!data?.is_admin) {
@@ -69,7 +69,7 @@ export default function KontrolAdminPage() {
     const { error } = await supabase
       .from("users")
       .update({ is_admin: !currentStatus })
-      .eq("username", username);
+      .eq("username", username.trim());
     
     if (error) {
       console.error("Error updating admin status:", error);
