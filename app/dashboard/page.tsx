@@ -25,6 +25,15 @@ export default function DashboardPage() {
 
         useEffect(() => {
 
+        // Cek login, jika tidak ada, redirect ke login
+        if (typeof window !== 'undefined') {
+            const username = localStorage.getItem('loggedUser');
+            if (!username) {
+                window.location.href = '/login';
+                return;
+            }
+        }
+
         const fetchData = async () => {
             try {
                 // Ambil user login dengan pengecekan aman

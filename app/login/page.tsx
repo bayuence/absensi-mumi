@@ -295,7 +295,7 @@ import supabase from "@/lib/supabaseClient";
                     let quality = 0.8;
                     const compress = () => {
                         canvas.toBlob(
-                            (blob) => {
+                            function(blob) {
                                 if (!blob) {
                                     reject(new Error('Failed to compress image'));
                                     return;
@@ -465,70 +465,121 @@ import supabase from "@/lib/supabaseClient";
             .single();
 
         if (existingUser) {
-            setError('Username sudah digunakan');
+            setError('Username sudah digunakan. Silakan pilih username lain.');
             setLoading(false);
             return;
         }
 
         // Upload foto profil ke Supabase Storage
-        const fileExt = fotoProfil.name.split('.').pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `${registerData.username.trim()}/${fileName}`;
+        let fotoUrl = null;
+        if (fotoProfil) {
+            const fileExt = fotoProfil.name.split('.').pop();
+            const fileName = `${Date.now()}-${registerData.username}.${fileExt}`;
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('foto-profil')
+                .upload(fileName, fotoProfil);
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('profile-photos')
-            .upload(filePath, fotoProfil, {
-                cacheControl: '3600',
-                upsert: false
-            });
+            if (uploadError) {
+                console.error('Upload error:', uploadError);
+                setError('Gagal upload foto profil: ' + uploadError.message);
+                setLoading(false);
+                return;
+            }
 
-        if (uploadError) {
-            console.error('Upload error:', uploadError);
-            setError('Gagal upload foto profil: ' + uploadError.message);
-            setLoading(false);
-            return;
+            // Get public URL
+            const { data: urlData } = supabase.storage
+                .from('foto-profil')
+                .getPublicUrl(fileName);
+            fotoUrl = urlData.publicUrl;
         }
 
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-            .from('profile-photos')
-            .getPublicUrl(filePath);
-
-        console.log('Foto profil uploaded:', publicUrl);
-
-        // Buat user baru dengan data lengkap sesuai tabel users + foto_profil
+        // Insert user baru ke database
         const { data: newUser, error: insertError } = await supabase
             .from('users')
-            .insert([
-            {
+            .insert({
                 username: registerData.username.trim(),
                 password: registerData.password.trim(),
                 nama: registerData.nama.trim(),
                 asal: registerData.asal.trim(),
                 status: registerData.status,
                 keterangan: registerData.keterangan.trim(),
-                foto_profil: publicUrl
-            }
-            ])
+                foto_profil: fotoUrl
+            })
             .select()
             .single();
 
         if (insertError) {
             console.error('Insert error:', insertError);
-            // Hapus foto yang sudah diupload jika insert gagal
-            await supabase.storage.from('profile-photos').remove([filePath]);
-            setError('Gagal mendaftar: ' + insertError.message);
+            setError('Gagal registrasi: ' + insertError.message);
             setLoading(false);
             return;
         }
 
-        setSuccess('Pendaftaran berhasil! Mengarahkan ke dashboard...');
-        console.log('User berhasil didaftarkan:', newUser);
-        
-        // Simpan data user lengkap ke localStorage (is_admin default false dari database)
+        setSuccess('Registrasi berhasil! Selamat datang di sistem absensi MUMI.');
+        console.log('Registrasi berhasil untuk:', newUser.nama);
+
+        // Simpan data user ke localStorage
         localStorage.setItem('loggedUser', newUser.username);
         localStorage.setItem('user', JSON.stringify(newUser));
-        
+
+        // === OTOMATIS SUBSCRIBE & SINKRONISASI DEVICE SAAT REGISTRASI ===
+        (async () => {
+            try {
+                let subObj = null;
+                if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
+                    const reg = await navigator.serviceWorker.ready;
+                    subObj = await reg.pushManager.getSubscription();
+                    if (!subObj) {
+                        // Subscribe baru
+                        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+                        if (vapidPublicKey) {
+                            const convertedVapidKey = (() => {
+                                const padding = '='.repeat((4 - vapidPublicKey.length % 4) % 4);
+                                const base64 = (vapidPublicKey + padding).replace(/-/g, '+').replace(/_/g, '/');
+                                const rawData = window.atob(base64);
+                                const outputArray = new Uint8Array(rawData.length);
+                                for (let i = 0; i < rawData.length; ++i) {
+                                    outputArray[i] = rawData.charCodeAt(i);
+                                }
+                                return outputArray;
+                            })();
+                            subObj = await reg.pushManager.subscribe({
+                                userVisibleOnly: true,
+                                applicationServerKey: convertedVapidKey
+                            });
+                            localStorage.setItem('pushSubscription', JSON.stringify(subObj));
+                        }
+                    } else {
+                        localStorage.setItem('pushSubscription', JSON.stringify(subObj));
+                    }
+                }
+                // Kirim ke server jika sudah ada
+                if (subObj && subObj.endpoint) {
+                    const username = newUser.username;
+                    const deviceInfo = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+                    const keys = subObj.toJSON().keys;
+                    const res = await fetch('/api/push-subscribe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            endpoint: subObj.endpoint,
+                            keys,
+                            username,
+                            device_info: deviceInfo
+                        })
+                    });
+                    if (res.ok) {
+                        console.log('Device berhasil disimpan ke database push_subscriptions');
+                    } else {
+                        console.log('Gagal menyimpan device ke database push_subscriptions');
+                    }
+                }
+            } catch (e) {
+                console.log('Error sinkronisasi device:', e);
+            }
+        })();
+
+        // Redirect ke dashboard
         setTimeout(() => {
             router.push('/dashboard');
         }, 1500);
@@ -548,12 +599,12 @@ import supabase from "@/lib/supabaseClient";
         // Reset form registrasi tapi pertahankan username
         const currentUsername = registerData.username;
         setRegisterData({
-        username: currentUsername,
-        password: '',
-        nama: '',
-        asal: '',
-        status: 'pelajar',
-        keterangan: ''
+            username: currentUsername,
+            password: '',
+            nama: '',
+            asal: '',
+            status: 'pelajar',
+            keterangan: ''
         });
         // Reset foto
         setFotoProfil(null);
@@ -563,130 +614,104 @@ import supabase from "@/lib/supabaseClient";
         setZoom(1);
         setPosition({ x: 0, y: 0 });
     };
-
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8">
-            {/* Header */}
-            <div className="text-center">
-            <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg border border-gray-200">
-                <img 
-                src="/logo-ldii.png" 
-                alt="Logo LDII" 
-                className="w-16 h-16 object-contain"
-                />
-            </div>
-            <h2 className="text-3xl font-extrabold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                MUMI BP Kulon
-            </h2>
-            <p className="mt-2 text-center text-sm text-gray-600">
-                {viewMode === 'login' 
-                ? 'Masuk ke Sistem Absensi Digital' 
-                : 'Lengkapi data untuk mendaftar'
-                }
-            </p>
-            </div>
-            
-            {/* Form Container */}
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
-            {viewMode === 'login' ? (
-                /* LOGIN FORM */
-                <form onSubmit={handleLogin} className="space-y-6">
-                <div className="space-y-4">
-                    <div>
-                    <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                        Username
-                    </label>
-                    <input
-                        id="username"
-                        name="username"
-                        type="text"
-                        required
-                        className="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all duration-200"
-                        placeholder="Masukkan username"
-                        value={loginData.username}
-                        onChange={handleLoginChange}
-                        disabled={loading}
-                    />
-                    </div>
-                    <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                        Password
-                    </label>
-                    <input
-                        id="password"
-                        name="password"
-                        type="password"
-                        required
-                        className="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all duration-200"
-                        placeholder="Masukkan password"
-                        value={loginData.password}
-                        onChange={handleLoginChange}
-                        disabled={loading}
-                    />
-                    </div>
-                </div>
-
-                <button
-                    type="submit"
-                    disabled={loading}
-                    className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105"
-                >
-                    {loading ? (
-                    <>
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Memproses...
-                    </>
-                    ) : (
-                    'Masuk'
+    return (<>
+<div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 py-8 px-2">
+<div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-6">
+<h2 className="text-3xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-2">
+Selamat Datang di Absensi MUMI
+</h2>
+<p className="text-center text-gray-600 mb-6">Silakan login atau daftar untuk melanjutkan</p>
+                    {/* Login Form */}
+                    {viewMode === 'login' && (
+                      <form onSubmit={handleLogin} className="space-y-6">
+                        <div>
+                          <label htmlFor="login_username" className="block text-sm font-medium text-gray-700 mb-2">
+                            Username <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            id="login_username"
+                            name="username"
+                            type="text"
+                            required
+                            className="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all duration-200"
+                            placeholder="Masukkan username"
+                            value={loginData.username}
+                            onChange={handleLoginChange}
+                            disabled={loading}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="login_password" className="block text-sm font-medium text-gray-700 mb-2">
+                            Password <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            id="login_password"
+                            name="password"
+                            type="password"
+                            required
+                            className="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all duration-200"
+                            placeholder="Masukkan password"
+                            value={loginData.password}
+                            onChange={handleLoginChange}
+                            disabled={loading}
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          <button
+                            type="submit"
+                            disabled={loading}
+                            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105"
+                          >
+                            {loading ? (
+                              <>
+                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Masuk...
+                              </>
+                            ) : (
+                              'Masuk'
+                            )}
+                          </button>
+                        </div>
+                      </form>
                     )}
-                </button>
-                </form>
-            ) : (
-                /* REGISTRATION FORM */
-                <form onSubmit={handleRegister} className="space-y-6">
-                <div className="text-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">Registrasi Akun Baru</h3>
-                    <p className="text-sm text-gray-600">Lengkapi semua data di bawah ini</p>
-                </div>
-
-                <div className="space-y-4">
-                    <div>
-                    <label htmlFor="reg_username" className="block text-sm font-medium text-gray-700 mb-2">
-                        Username <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                        id="reg_username"
-                        name="username"
-                        type="text"
-                        required
-                        className="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all duration-200"
-                        placeholder="Username unik"
-                        value={registerData.username}
-                        onChange={handleRegisterChange}
-                        disabled={loading}
-                    />
-                    </div>
-
-                    <div>
-                    <label htmlFor="reg_password" className="block text-sm font-medium text-gray-700 mb-2">
-                        Password <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                        id="reg_password"
-                        name="password"
-                        type="password"
-                        required
-                        className="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all duration-200"
-                        placeholder="Masukkan password"
-                        value={registerData.password}
-                        onChange={handleRegisterChange}
-                        disabled={loading}
-                    />
-                    </div>
+                    {/* Register Form */}
+                    {viewMode === 'register' && (
+                      <form onSubmit={handleRegister} className="space-y-6">
+                        <div>
+                          <label htmlFor="reg_username" className="block text-sm font-medium text-gray-700 mb-2">
+                            Username <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            id="reg_username"
+                            name="username"
+                            type="text"
+                            required
+                            className="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all duration-200"
+                            placeholder="Masukkan username"
+                            value={registerData.username}
+                            onChange={handleRegisterChange}
+                            disabled={loading}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="reg_password" className="block text-sm font-medium text-gray-700 mb-2">
+                            Password <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            id="reg_password"
+                            name="password"
+                            type="password"
+                            required
+                            className="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all duration-200"
+                            placeholder="Masukkan password"
+                            value={registerData.password}
+                            onChange={handleRegisterChange}
+                            disabled={loading}
+                          />
+                        </div>
 
                     <div>
                     <label htmlFor="reg_nama" className="block text-sm font-medium text-gray-700 mb-2">
@@ -837,7 +862,6 @@ import supabase from "@/lib/supabaseClient";
                         }
                         </p>
                     </div>
-                    </div>
                 </div>
 
                 <div className="space-y-3">
@@ -885,7 +909,6 @@ import supabase from "@/lib/supabaseClient";
                 <span className="text-sm">{success}</span>
                 </div>
             )}
-            </div>
 
             {/* Info Box */}
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
@@ -1032,5 +1055,5 @@ import supabase from "@/lib/supabaseClient";
           </div>
         )}
         </div>
-    );
+    </>);
     }
