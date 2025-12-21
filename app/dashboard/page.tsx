@@ -212,7 +212,15 @@ export default function DashboardPage() {
                 <Navbar />
                 {/* Prompt Notifikasi */}
                 {showNotifPrompt && (
-                    <div className="fixed z-50 bottom-4 right-4 bg-white border shadow-lg p-4 rounded-xl flex flex-col items-center gap-2 animate-fade-in">
+                    <div className="fixed z-50 bottom-4 right-4 bg-white border shadow-lg p-4 rounded-xl flex flex-col items-center gap-2 animate-fade-in relative">
+                        {/* Tombol X untuk menutup */}
+                        <button
+                            onClick={() => setShowNotifPrompt(false)}
+                            className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded-full text-gray-600 text-lg font-bold transition-all"
+                            aria-label="Tutup Notifikasi"
+                        >
+                            ×
+                        </button>
                         <span className="text-2xl">🔔</span>
                         <p className="text-slate-700 font-semibold">Aktifkan notifikasi agar tidak ketinggalan info penting!</p>
                         <button onClick={handleRequestNotif} className="mt-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-medium transition-all">
