@@ -386,16 +386,22 @@ import supabase from "@/lib/supabaseClient";
             localStorage.setItem('loggedUser', userData.username);
             localStorage.setItem('user', JSON.stringify(userData));
 
-            // === SIMPAN DATA SUBSCRIPTION DEVICE SAAT LOGIN ===
+            // === SIMPAN DATA SUBSCRIPTION DEVICE SAAT LOGIN (dengan username & device_info) ===
             try {
                 const localSub = localStorage.getItem('pushSubscription');
+                const username = userData.username;
+                const deviceInfo = typeof navigator !== 'undefined' ? navigator.userAgent : '';
                 if (localSub) {
                     const subObj = JSON.parse(localSub);
                     if (subObj && subObj.endpoint) {
                         fetch('/api/push-subscribe', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(subObj)
+                            body: JSON.stringify({
+                                ...subObj,
+                                username,
+                                device_info: deviceInfo
+                            })
                         });
                     }
                 }

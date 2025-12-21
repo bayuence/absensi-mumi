@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .eq('endpoint', body.endpoint)
       .single();
     if (!existing) {
-      // Simpan subscription baru
+      // Simpan subscription baru dengan username & device_info
       const { error: insertError } = await supabase
         .from('push_subscriptions')
         .insert([
@@ -27,6 +27,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             endpoint: body.endpoint,
             keys: body.keys ? JSON.stringify(body.keys) : null,
             created_at: new Date().toISOString(),
+            username: body.username || null,
+            device_info: body.device_info || null,
           }
         ]);
       if (insertError) {
