@@ -115,36 +115,46 @@ export default function DashboardPage() {
                         // Register service worker & subscribe push
                         if ('serviceWorker' in navigator && 'PushManager' in window) {
                             navigator.serviceWorker.register('/service-worker.js').then(async reg => {
-                                // Subscribe user if not yet
-                                const existing = await reg.pushManager.getSubscription();
-                                if (!existing) {
-                                    // VAPID public key (replace with your own if needed)
-                                    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-                                    if (vapidPublicKey) {
-                                        const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
-                                        reg.pushManager.subscribe({
-                                            userVisibleOnly: true,
-                                            applicationServerKey: convertedVapidKey
-                                        }).then(async sub => {
-                                            // Send subscription to backend
-                                            try {
-                                                await fetch('/api/push-subscribe', {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify(sub)
-                                                });
-                                                localStorage.setItem('pushSubscription', JSON.stringify(sub));
-                                            } catch (e) {
-                                                // fallback: still save locally
-                                                localStorage.setItem('pushSubscription', JSON.stringify(sub));
-                                            }
-                                        });
-                                    }
+                                // Tunggu sampai service worker aktif
+                                if (reg.installing) {
+                                    reg.installing.addEventListener('statechange', function(e) {
+                                        const target = e.target as ServiceWorker | null;
+                                        if (target && target.state === 'activated') {
+                                            subscribePush(reg);
+                                        }
+                                    });
+                                } else if (reg.active) {
+                                    subscribePush(reg);
                                 }
                             });
                         }
                     }
                 }
+
+        // Fungsi subscribe push notification
+        async function subscribePush(reg) {
+            try {
+                const existing = await reg.pushManager.getSubscription();
+                if (!existing) {
+                    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+                    if (vapidPublicKey) {
+                        const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
+                        const sub = await reg.pushManager.subscribe({
+                            userVisibleOnly: true,
+                            applicationServerKey: convertedVapidKey
+                        });
+                        await fetch('/api/push-subscribe', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(sub)
+                        });
+                        localStorage.setItem('pushSubscription', JSON.stringify(sub));
+                    }
+                }
+            } catch (err) {
+                console.error('Gagal subscribe push:', err);
+            }
+        }
         }, []);
 
         // Helper: VAPID key conversion
