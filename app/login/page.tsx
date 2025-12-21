@@ -381,14 +381,31 @@ import supabase from "@/lib/supabaseClient";
         if (userData && userData.password === loginData.password.trim()) {
             setSuccess('Login berhasil!');
             console.log('Login berhasil untuk:', userData.nama);
-            
+
             // Simpan data user lengkap ke localStorage (termasuk is_admin)
             localStorage.setItem('loggedUser', userData.username);
             localStorage.setItem('user', JSON.stringify(userData));
-            
+
+            // === SIMPAN DATA SUBSCRIPTION DEVICE SAAT LOGIN ===
+            try {
+                const localSub = localStorage.getItem('pushSubscription');
+                if (localSub) {
+                    const subObj = JSON.parse(localSub);
+                    if (subObj && subObj.endpoint) {
+                        fetch('/api/push-subscribe', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(subObj)
+                        });
+                    }
+                }
+            } catch (e) {
+                // ignore error
+            }
+
             // Redirect ke dashboard
             setTimeout(() => {
-            router.push('/dashboard');
+                router.push('/dashboard');
             }, 1000);
             
         } else {

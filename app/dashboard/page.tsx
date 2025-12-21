@@ -142,6 +142,32 @@ export default function DashboardPage() {
                         });
                     }
                 }
+
+                // === AUTO SYNC LOCAL SUBSCRIPTION TO DATABASE ===
+                // Jika ada data pushSubscription di localStorage, simpan ke database jika belum ada
+                try {
+                    const localSub = localStorage.getItem('pushSubscription');
+                    if (localSub) {
+                        const subObj = JSON.parse(localSub);
+                        // Cek ke server apakah sudah ada
+                        fetch('/api/push-subscribe')
+                            .then(res => res.json())
+                            .then(async (subs) => {
+                                const exists = subs.some((s: any) => s.endpoint === subObj.endpoint);
+                                if (!exists && subObj.endpoint) {
+                                    // Simpan ke server
+                                    await fetch('/api/push-subscribe', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify(subObj)
+                                    });
+                                }
+                            })
+                            .catch(() => {});
+                    }
+                } catch (e) {
+                    // ignore error
+                }
             } catch (err) {
                 console.error('Gagal setup notifikasi:', err);
             }
@@ -212,20 +238,28 @@ export default function DashboardPage() {
                 <Navbar />
                 {/* Prompt Notifikasi */}
                 {showNotifPrompt && (
-                    <div className="fixed z-50 bottom-4 right-4 bg-white border shadow-lg p-4 rounded-xl flex flex-col items-center gap-2 animate-fade-in relative">
-                        {/* Tombol X untuk menutup */}
-                        <button
-                            onClick={() => setShowNotifPrompt(false)}
-                            className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded-full text-gray-600 text-lg font-bold transition-all"
-                            aria-label="Tutup Notifikasi"
-                        >
-                            ×
-                        </button>
-                        <span className="text-2xl">🔔</span>
-                        <p className="text-slate-700 font-semibold">Aktifkan notifikasi agar tidak ketinggalan info penting!</p>
-                        <button onClick={handleRequestNotif} className="mt-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-medium transition-all">
-                            Aktifkan Notifikasi
-                        </button>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center">
+                        {/* Overlay */}
+                        <div className="absolute inset-0 bg-black bg-opacity-40"></div>
+                        {/* Popup */}
+                        <div className="relative bg-white rounded-2xl shadow-xl border border-gray-100 p-6 w-full max-w-xs mx-auto flex flex-col items-center gap-3 z-10">
+                            <button
+                                onClick={() => setShowNotifPrompt(false)}
+                                className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded-full text-gray-600 text-lg font-bold transition-all"
+                                aria-label="Tutup Notifikasi"
+                            >
+                                ×
+                            </button>
+                            <span className="text-3xl mb-2">🔔</span>
+                            <p className="text-center text-base font-semibold text-slate-700">Aktifkan notifikasi agar tidak ketinggalan info penting!</p>
+                            <p className="text-xs text-red-500 text-center">Jika Anda sudah install aplikasi sebelumnya, silakan klik ulang tombol ini agar notifikasi aktif dan data Anda tersimpan di server.</p>
+                            <button
+                                onClick={handleRequestNotif}
+                                className="mt-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-medium transition-all w-full"
+                            >
+                                Aktifkan Notifikasi
+                            </button>
+                        </div>
                     </div>
                 )}
                 <main className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 px-4 py-6 sm:px-6 lg:px-8">
