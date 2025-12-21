@@ -114,7 +114,7 @@ export default function DashboardPage() {
                     } else {
                         // Register service worker & subscribe push
                         if ('serviceWorker' in navigator && 'PushManager' in window) {
-                            navigator.serviceWorker.register('/service-worker.js').then(async reg => {
+                            navigator.serviceWorker.register('/service-worker.js').then(async (reg: ServiceWorkerRegistration) => {
                                 // Tunggu sampai service worker aktif
                                 if (reg.installing) {
                                     reg.installing.addEventListener('statechange', function(e) {
@@ -132,7 +132,7 @@ export default function DashboardPage() {
                 }
 
         // Fungsi subscribe push notification
-        async function subscribePush(reg) {
+        async function subscribePush(reg: ServiceWorkerRegistration) {
             try {
                 const existing = await reg.pushManager.getSubscription();
                 if (!existing) {
