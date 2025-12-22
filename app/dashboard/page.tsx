@@ -116,7 +116,7 @@ export default function DashboardPage() {
         fetchData();
 
 
-        // === PROMPT NOTIFIKASI & SW REGISTRATION ===
+        // === PROMPT NOTIFIKASI ===
         if (typeof window !== 'undefined') {
             try {
                 const permission = typeof Notification !== 'undefined' ? Notification.permission : null;
@@ -131,116 +131,83 @@ export default function DashboardPage() {
                     if (!lastPrompt || now - Number(lastPrompt) > 24 * 60 * 60 * 1000) {
                         setShowNotifPrompt(true);
                     }
-                } else {
-                    // Register service worker & subscribe push
-                    if ('serviceWorker' in navigator && 'PushManager' in window) {
-                        navigator.serviceWorker.register('/service-worker.js').then(async (reg: ServiceWorkerRegistration) => {
-                            // Tunggu sampai service worker aktif
-                            if (reg.installing) {
-                                reg.installing.addEventListener('statechange', function(e) {
-                                    const target = e.target as ServiceWorker | null;
-                                    if (target && target.state === 'activated') {
-                                        subscribePush(reg);
-                                    }
-                                });
-                            } else if (reg.active) {
-                                subscribePush(reg);
-                            }
-                        }).catch((err) => {
-                            console.error('Gagal register service worker:', err);
-                        });
-                    }
                 }
-
-                // === AUTO SYNC LOCAL SUBSCRIPTION TO DATABASE ===
-                // Jika ada data pushSubscription di localStorage, simpan ke database jika belum ada
-                try {
-                    const localSub = localStorage.getItem('pushSubscription');
-                    if (localSub) {
-                        const subObj = JSON.parse(localSub);
-                        // Cek ke server apakah sudah ada
-                        fetch('/api/push-subscribe')
-                            .then(res => res.json())
-                            .then(async (subs) => {
-                                const exists = subs.some((s: any) => s.endpoint === subObj.endpoint);
-                                if (!exists && subObj.endpoint) {
-                                    // Simpan ke server
-                                    await fetch('/api/push-subscribe', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify(subObj)
-                                    });
-                                }
-                            })
-                            .catch(() => {});
-                    }
-                } catch (e) {
-                    // ignore error
-                }
+                // Note: Push subscription sudah ditangani otomatis saat login
             } catch (err) {
                 console.error('Gagal setup notifikasi:', err);
             }
         }
-
-        // Fungsi subscribe push notification
-        async function subscribePush(reg: ServiceWorkerRegistration) {
-            try {
-                if (!('PushManager' in window)) return;
-                const existing = await reg.pushManager.getSubscription();
-                if (!existing) {
-                    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-                    if (vapidPublicKey) {
-                        const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
-                        const sub = await reg.pushManager.subscribe({
-                            userVisibleOnly: true,
-                            applicationServerKey: convertedVapidKey
-                        });
-                        await fetch('/api/push-subscribe', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(sub)
-                        });
-                        try {
-                            localStorage.setItem('pushSubscription', JSON.stringify(sub));
-                        } catch (e) {
-                            // ignore localStorage error
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error('Gagal subscribe push:', err);
-            }
-        }
         }, []);
-
-        // Helper: VAPID key conversion
-        function urlBase64ToUint8Array(base64String: string) {
-            const padding = '='.repeat((4 - base64String.length % 4) % 4);
-            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-            const rawData = window.atob(base64);
-            const outputArray = new Uint8Array(rawData.length);
-            for (let i = 0; i < rawData.length; ++i) {
-                outputArray[i] = rawData.charCodeAt(i);
-            }
-            return outputArray;
-        }
-
-    const sortedUsers = [...userList].sort((a, b) =>
-        a.nama.localeCompare(b.nama)
-    );
 
         // Handler untuk meminta izin notifikasi
         const handleRequestNotif = async () => {
             if (typeof window !== 'undefined' && 'Notification' in window) {
                 try {
-                    await Notification.requestPermission();
+                    const permission = await Notification.requestPermission();
                     localStorage.setItem('lastNotifPrompt', Date.now().toString());
+
+                    if (permission === 'granted') {
+                        // Jika permission granted, lakukan subscribe push
+                        const username = localStorage.getItem('loggedUser');
+                        if (username) {
+                            // Import fungsi subscribe dari login page (atau buat ulang di sini)
+                            try {
+                                if ('serviceWorker' in navigator && 'PushManager' in window) {
+                                    const reg = await navigator.serviceWorker.ready;
+                                    let subObj = await reg.pushManager.getSubscription();
+
+                                    if (!subObj) {
+                                        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+                                        if (vapidPublicKey) {
+                                            const convertedVapidKey = (() => {
+                                                const padding = '='.repeat((4 - vapidPublicKey.length % 4) % 4);
+                                                const base64 = (vapidPublicKey + padding).replace(/-/g, '+').replace(/_/g, '/');
+                                                const rawData = window.atob(base64);
+                                                const outputArray = new Uint8Array(rawData.length);
+                                                for (let i = 0; i < rawData.length; ++i) {
+                                                    outputArray[i] = rawData.charCodeAt(i);
+                                                }
+                                                return outputArray;
+                                            })();
+                                            subObj = await reg.pushManager.subscribe({
+                                                userVisibleOnly: true,
+                                                applicationServerKey: convertedVapidKey
+                                            });
+                                            localStorage.setItem('pushSubscription', JSON.stringify(subObj));
+                                        }
+                                    }
+
+                                    // Kirim ke server
+                                    if (subObj && subObj.endpoint) {
+                                        const deviceInfo = navigator.userAgent;
+                                        const keys = subObj.toJSON().keys;
+                                        await fetch('/api/push-subscribe', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                endpoint: subObj.endpoint,
+                                                keys,
+                                                username,
+                                                device_info: deviceInfo
+                                            })
+                                        });
+                                    }
+                                }
+                            } catch (e) {
+                                console.log('Error subscribe push di dashboard:', e);
+                            }
+                        }
+                    }
                 } catch (e) {
                     // ignore localStorage error
                 }
                 setShowNotifPrompt(false);
             }
         };
+
+    const sortedUsers = [...userList].sort((a, b) =>
+        a.nama.localeCompare(b.nama)
+    );
 
         return (
             <>
@@ -463,7 +430,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {sortedUsers.map((u, index) => (
+                    {sortedUsers.map((u, index: number) => (
                     <div 
                         key={u.username} 
                         onClick={() => {
