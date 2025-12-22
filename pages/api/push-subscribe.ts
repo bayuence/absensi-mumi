@@ -23,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           username: body.username || null,
           device_info: body.device_info || null,
         }
-      ], { onConflict: ['endpoint'] });
+      ], { onConflict: 'endpoint' });
     if (upsertError) {
       console.error('Failed to save subscription:', upsertError);
       res.status(500).json({ error: 'Failed to save subscription', detail: upsertError.message });
