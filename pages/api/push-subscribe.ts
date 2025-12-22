@@ -12,29 +12,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.status(400).json({ error: 'Invalid subscription' });
       return;
     }
-    // Cek duplikat endpoint
-    const { data: existing, error: findError } = await supabase
+    // Upsert: simpan/replace berdasarkan endpoint (unique per device)
+    const { error: upsertError } = await supabase
       .from('push_subscriptions')
-      .select('id')
-      .eq('endpoint', body.endpoint)
-      .single();
-    if (!existing) {
-      // Simpan subscription baru dengan username & device_info
-      const { error: insertError } = await supabase
-        .from('push_subscriptions')
-        .insert([
-          {
-            endpoint: body.endpoint,
-            keys: body.keys ? JSON.stringify(body.keys) : null,
-            created_at: new Date().toISOString(),
-            username: body.username || null,
-            device_info: body.device_info || null,
-          }
-        ]);
-      if (insertError) {
-        res.status(500).json({ error: 'Failed to save subscription' });
-        return;
-      }
+      .upsert([
+        {
+          endpoint: body.endpoint,
+          keys: body.keys ? JSON.stringify(body.keys) : null,
+          created_at: new Date().toISOString(),
+          username: body.username || null,
+          device_info: body.device_info || null,
+        }
+      ], { onConflict: ['endpoint'] });
+    if (upsertError) {
+      console.error('Failed to save subscription:', upsertError);
+      res.status(500).json({ error: 'Failed to save subscription', detail: upsertError.message });
+      return;
     }
     res.status(200).json({ success: true });
   } else if (req.method === 'GET') {
