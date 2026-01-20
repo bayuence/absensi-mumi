@@ -32,13 +32,25 @@ export default function PenggunaPage() {
         return;
       }
 
-      const user = JSON.parse(currentUser);
+      let user;
+      try {
+        user = JSON.parse(currentUser);
+      } catch (e) {
+        router.push("/login");
+        return;
+      }
+
+      if (!user || !user.username) {
+        router.push("/login");
+        return;
+      }
+
       const { data } = await supabase
         .from("users")
         .select("is_admin")
         .eq("username", user.username.trim())
         .single();
-      
+
       if (!data?.is_admin) {
         alert("Anda tidak memiliki akses ke halaman ini!");
         router.push("/dashboard");
@@ -67,12 +79,12 @@ export default function PenggunaPage() {
 
   const handleDelete = async (username: string) => {
     if (!confirm(`Yakin ingin menghapus pengguna ${username}?\nData presensi pengguna ini juga akan terhapus!`)) return;
-    
+
     setDeleting(username);
-    
+
     // Delete presensi first
     await supabase.from("presensi").delete().eq("nama", username);
-    
+
     // Then delete user
     const { error } = await supabase
       .from("users")
@@ -144,12 +156,12 @@ export default function PenggunaPage() {
       if (oldUsername !== editForm.username) {
         await supabase
           .from("presensi")
-          .update({ 
+          .update({
             nama: editForm.nama,
-            username: editForm.username 
+            username: editForm.username
           })
           .eq("username", oldUsername);
-        
+
         // Update jadwal_guru table
         await supabase
           .from("jadwal_guru")
@@ -184,9 +196,9 @@ export default function PenggunaPage() {
   // Filter users
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         user.asal.toLowerCase().includes(searchQuery.toLowerCase());
-    
+      user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.asal.toLowerCase().includes(searchQuery.toLowerCase());
+
     return matchesSearch;
   });
 
@@ -195,7 +207,7 @@ export default function PenggunaPage() {
       <Navbar />
       <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-3 sm:p-6">
         <div className="max-w-6xl mx-auto">
-          
+
           {/* Header */}
           <div className="mb-6">
             <button
@@ -207,7 +219,7 @@ export default function PenggunaPage() {
               </svg>
               <span>Kembali ke Admin</span>
             </button>
-            
+
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent mb-2">
               👥 Pengguna Terdaftar
             </h1>
@@ -231,7 +243,7 @@ export default function PenggunaPage() {
 
           {/* Main Card */}
           <div className="bg-white/80 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-xl border border-white/50 p-4 sm:p-6 md:p-8">
-            
+
             {/* Search */}
             <div className="mb-6">
               <div className="relative">
@@ -285,7 +297,7 @@ export default function PenggunaPage() {
                           <input
                             type="text"
                             value={editForm.nama}
-                            onChange={(e) => setEditForm({...editForm, nama: e.target.value})}
+                            onChange={(e) => setEditForm({ ...editForm, nama: e.target.value })}
                             className="w-full p-3 border-2 border-slate-200 rounded-xl bg-white text-slate-900 focus:border-orange-400 focus:ring-4 focus:ring-orange-100 transition-all"
                             placeholder="Masukkan nama lengkap"
                           />
@@ -299,7 +311,7 @@ export default function PenggunaPage() {
                           <input
                             type="text"
                             value={editForm.username}
-                            onChange={(e) => setEditForm({...editForm, username: e.target.value})}
+                            onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
                             className="w-full p-3 border-2 border-slate-200 rounded-xl bg-white text-slate-900 focus:border-orange-400 focus:ring-4 focus:ring-orange-100 transition-all"
                             placeholder="Masukkan username"
                           />
@@ -313,7 +325,7 @@ export default function PenggunaPage() {
                           <input
                             type="text"
                             value={editForm.password}
-                            onChange={(e) => setEditForm({...editForm, password: e.target.value})}
+                            onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
                             className="w-full p-3 border-2 border-slate-200 rounded-xl bg-white text-slate-900 focus:border-orange-400 focus:ring-4 focus:ring-orange-100 transition-all"
                             placeholder="Masukkan password"
                           />
@@ -327,7 +339,7 @@ export default function PenggunaPage() {
                           <input
                             type="text"
                             value={editForm.asal}
-                            onChange={(e) => setEditForm({...editForm, asal: e.target.value})}
+                            onChange={(e) => setEditForm({ ...editForm, asal: e.target.value })}
                             className="w-full p-3 border-2 border-slate-200 rounded-xl bg-white text-slate-900 focus:border-orange-400 focus:ring-4 focus:ring-orange-100 transition-all"
                             placeholder="Masukkan asal (contoh: Kulon, Grend, dsb)"
                           />

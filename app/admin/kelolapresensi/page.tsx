@@ -40,13 +40,25 @@ export default function KelolaPresensiPage() {
         return;
       }
 
-      const user = JSON.parse(currentUser);
+      let user;
+      try {
+        user = JSON.parse(currentUser);
+      } catch (e) {
+        router.push("/login");
+        return;
+      }
+
+      if (!user || !user.username) {
+        router.push("/login");
+        return;
+      }
+
       const { data } = await supabase
         .from("users")
         .select("is_admin")
         .eq("username", user.username.trim())
         .single();
-      
+
       if (!data?.is_admin) {
         alert("Anda tidak memiliki akses ke halaman ini!");
         router.push("/dashboard");
@@ -134,7 +146,7 @@ export default function KelolaPresensiPage() {
 
   const handleDelete = async (id: number) => {
     if (!confirm("Yakin ingin menghapus data kehadiran ini?")) return;
-    
+
     setDeleting(id);
     const { error } = await supabase
       .from("absensi")
@@ -155,7 +167,7 @@ export default function KelolaPresensiPage() {
       <Navbar />
       <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-3 sm:p-6">
         <div className="max-w-6xl mx-auto">
-          
+
           {/* Header */}
           <div className="mb-6">
             <button
@@ -167,7 +179,7 @@ export default function KelolaPresensiPage() {
               </svg>
               <span>Kembali ke Admin</span>
             </button>
-            
+
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent mb-2">
               ✅ Kelola Kehadiran
             </h1>

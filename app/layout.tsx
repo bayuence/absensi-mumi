@@ -1,23 +1,24 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 // URL website kamu (Penting untuk SEO)
 const baseUrl = "https://presensimumi.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
-  
+
   // Pengaturan Judul: Tidak kapital semua agar terlihat profesional di Google
   title: {
     default: "Sistem Presensi Generus LDII BPKulon",
     template: "%s | Presensi Generus LDII BPKulon",
   },
-  
+
   // Deskripsi yang akan muncul di bawah judul di Google
   description:
     "Sistem presensi digital resmi Generus LDII BPKULON Gresik. Rekap data otomatis. Developed by bayuence",
-  
+
   keywords: [
     "Presensi MUMI",
     "Presensi MUMI BPkulon",
@@ -34,7 +35,7 @@ export const metadata: Metadata = {
     "Generus Gresik",
     "Sistem Informasi LDII",
   ],
-  
+
   authors: [{ name: "Bayu Ence", url: "https://www.instagram.com/bayuence_" }],
   creator: "Bayu Ence",
   publisher: "Generus LDII BPKULON",
@@ -104,7 +105,7 @@ export default function RootLayout({
         <meta name="google-site-verification" content="6kO-dYQCtOZ7n1n2a3sCSmpHGQrCvmyNughcX793fYk" />
         {/* Manifest untuk PWA */}
         <link rel="manifest" href="/manifest.json" />
-        
+
         {/* PWA Meta Tags */}
         <meta name="theme-color" content="#22c55e" />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -112,7 +113,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="LDII BPKULON" />
-        
+
         {/* Google Analytics */}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-9VRC4Z4SB0"
@@ -128,6 +129,8 @@ export default function RootLayout({
         </Script>
       </head>
       <body className="bg-gray-900 text-gray-100 antialiased">
+        {/* Register Service Worker untuk Push Notification */}
+        <ServiceWorkerRegister />
         {/* Script JSON-LD disisipkan di sini */}
         <script
           type="application/ld+json"
@@ -138,3 +141,4 @@ export default function RootLayout({
     </html>
   );
 }
+

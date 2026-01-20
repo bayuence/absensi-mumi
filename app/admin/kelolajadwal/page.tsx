@@ -19,7 +19,7 @@ interface JadwalGuru {
 export default function KelolaJadwalGuruPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"buat" | "lihat">("buat");
-  
+
   // Lihat Jadwal States
   const [jadwalList, setJadwalList] = useState<JadwalGuru[]>([]);
   const [loadingJadwal, setLoadingJadwal] = useState(false);
@@ -32,13 +32,25 @@ export default function KelolaJadwalGuruPage() {
         return;
       }
 
-      const user = JSON.parse(currentUser);
+      let user;
+      try {
+        user = JSON.parse(currentUser);
+      } catch (e) {
+        router.push("/login");
+        return;
+      }
+
+      if (!user || !user.username) {
+        router.push("/login");
+        return;
+      }
+
       const { data } = await supabase
         .from("users")
         .select("is_admin")
         .eq("username", user.username.trim())
         .single();
-      
+
       if (!data?.is_admin) {
         alert("Anda tidak memiliki akses ke halaman ini!");
         router.push("/dashboard");
@@ -70,7 +82,7 @@ export default function KelolaJadwalGuruPage() {
       <Navbar />
       <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-3 sm:p-6">
         <div className="max-w-6xl mx-auto">
-          
+
           {/* Header */}
           <div className="mb-6">
             <button
@@ -82,7 +94,7 @@ export default function KelolaJadwalGuruPage() {
               </svg>
               <span>Kembali ke Admin</span>
             </button>
-            
+
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent mb-2">
               📅 Kelola Jadwal Guru
             </h1>
@@ -94,22 +106,20 @@ export default function KelolaJadwalGuruPage() {
             <div className="flex gap-2">
               <button
                 onClick={() => setActiveTab("buat")}
-                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
-                  activeTab === "buat"
+                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "buat"
                     ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg"
                     : "text-slate-600 hover:bg-slate-100"
-                }`}
+                  }`}
               >
                 <span>📝</span>
                 <span>Buat Jadwal</span>
               </button>
               <button
                 onClick={() => setActiveTab("lihat")}
-                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
-                  activeTab === "lihat"
+                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "lihat"
                     ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg"
                     : "text-slate-600 hover:bg-slate-100"
-                }`}
+                  }`}
               >
                 <span>📋</span>
                 <span>Lihat Jadwal</span>

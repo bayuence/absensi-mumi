@@ -5,10 +5,11 @@ import { createClient } from '@supabase/supabase-js';
 
 
 
+
 // Initialize Supabase client
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 type ViewMode = 'login' | 'register';
@@ -19,9 +20,22 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
-            const loggedUser = localStorage.getItem('user');
-            if (loggedUser) {
-                router.replace('/dashboard');
+            try {
+                const loggedUserRaw = localStorage.getItem('user');
+                const loggedUsername = localStorage.getItem('loggedUser');
+
+                // Hanya redirect jika KEDUA data ada dan valid
+                if (loggedUserRaw && loggedUsername) {
+                    const userData = JSON.parse(loggedUserRaw);
+                    if (userData && userData.username) {
+                        router.replace('/dashboard');
+                    }
+                }
+            } catch (e) {
+                // Jika data corrupt, bersihkan dan biarkan user login ulang
+                localStorage.removeItem('user');
+                localStorage.removeItem('loggedUser');
+                console.log('Cleared corrupt login data');
             }
         }
     }, [router]);
@@ -188,11 +202,11 @@ export default function LoginPage() {
                 const canvas = document.createElement('canvas');
                 const outputSize = 400;
                 const previewSize = 288;
-                
+
                 canvas.width = outputSize;
                 canvas.height = outputSize;
                 const ctx = canvas.getContext('2d');
-                
+
                 if (!ctx) {
                     resolve(null);
                     return;
@@ -219,7 +233,7 @@ export default function LoginPage() {
                 ctx.translate(-imgWidth / 2 * ratio, -imgHeight / 2 * ratio);
 
                 ctx.drawImage(img, 0, 0, imgWidth * ratio, imgHeight * ratio);
-                
+
                 ctx.restore();
 
                 canvas.toBlob((blob) => {
@@ -237,10 +251,10 @@ export default function LoginPage() {
                 const img = new Image();
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    
+
                     let width = img.width;
                     let height = img.height;
-                    
+
                     const maxSize = 800;
                     if (width > maxSize || height > maxSize) {
                         if (width > height) {
@@ -251,27 +265,27 @@ export default function LoginPage() {
                             height = maxSize;
                         }
                     }
-                    
+
                     canvas.width = width;
                     canvas.height = height;
-                    
+
                     const ctx = canvas.getContext('2d');
                     if (!ctx) {
                         reject(new Error('Failed to get canvas context'));
                         return;
                     }
-                    
+
                     ctx.drawImage(img, 0, 0, width, height);
-                    
+
                     let quality = 0.8;
                     const compress = () => {
                         canvas.toBlob(
-                            function(blob) {
+                            function (blob) {
                                 if (!blob) {
                                     reject(new Error('Failed to compress image'));
                                     return;
                                 }
-                                
+
                                 const targetSize = 100 * 1024;
                                 if (blob.size > targetSize && quality > 0.3) {
                                     quality -= 0.1;
@@ -285,7 +299,7 @@ export default function LoginPage() {
                             quality
                         );
                     };
-                    
+
                     compress();
                 };
                 img.onerror = () => reject(new Error('Failed to load image'));
@@ -299,16 +313,28 @@ export default function LoginPage() {
     const subscribePushNotification = async (username: string) => {
         try {
             if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-                console.log('Push notification tidak didukung di browser ini');
+                console.log('⚠️ Push notification tidak didukung di browser ini');
                 return null;
             }
 
-            const reg = await navigator.serviceWorker.ready;
-            let subObj = await reg.pushManager.getSubscription();
+            // Pastikan service worker sudah terdaftar
+            let registration = await navigator.serviceWorker.getRegistration();
+            if (!registration) {
+                console.log('🔄 Mendaftarkan service worker...');
+                registration = await navigator.serviceWorker.register('/service-worker.js');
+                console.log('✅ Service worker berhasil didaftarkan');
+            }
+
+            // Tunggu sampai service worker aktif
+            await navigator.serviceWorker.ready;
+            console.log('✅ Service worker sudah aktif');
+
+            let subObj = await registration.pushManager.getSubscription();
 
             if (!subObj) {
                 const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
                 if (vapidPublicKey) {
+                    console.log('🔄 Membuat push subscription baru...');
                     const convertedVapidKey = (() => {
                         const padding = '='.repeat((4 - vapidPublicKey.length % 4) % 4);
                         const base64 = (vapidPublicKey + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -319,20 +345,24 @@ export default function LoginPage() {
                         }
                         return outputArray;
                     })();
-                    subObj = await reg.pushManager.subscribe({
+                    subObj = await registration.pushManager.subscribe({
                         userVisibleOnly: true,
                         applicationServerKey: convertedVapidKey
                     });
                     localStorage.setItem('pushSubscription', JSON.stringify(subObj));
-                    console.log('Berhasil subscribe push notification untuk device baru');
+                    console.log('✅ Berhasil subscribe push notification untuk device baru');
+                } else {
+                    console.log('❌ VAPID public key tidak ditemukan');
                 }
             } else {
                 localStorage.setItem('pushSubscription', JSON.stringify(subObj));
+                console.log('✅ Subscription sudah ada, menggunakan yang existing');
             }
 
             if (subObj && subObj.endpoint) {
                 const deviceInfo = navigator.userAgent;
                 const keys = subObj.toJSON().keys;
+                console.log('🔄 Mengirim subscription ke server...');
                 const res = await fetch('/api/push-subscribe', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -344,18 +374,19 @@ export default function LoginPage() {
                     })
                 });
                 if (res.ok) {
-                    console.log('Device berhasil disimpan ke database push_subscriptions');
+                    console.log('✅ Device berhasil disimpan ke database push_subscriptions');
                 } else {
-                    console.log('Gagal menyimpan device ke database push_subscriptions');
+                    console.log('❌ Gagal menyimpan device ke database push_subscriptions');
                 }
             }
 
             return subObj;
         } catch (e) {
-            console.log('Error subscribe push notification:', e);
+            console.log('❌ Error subscribe push notification:', e);
             return null;
         }
     };
+
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -387,12 +418,12 @@ export default function LoginPage() {
                 if (userError.code === 'PGRST116') {
                     setError('');
                     setSuccess('Username tidak ditemukan. Silakan lengkapi data registrasi di bawah ini.');
-                    
+
                     setRegisterData({
                         ...registerData,
                         username: loginData.username.trim()
                     });
-                    
+
                     setTimeout(() => {
                         setViewMode('register');
                         setSuccess('');
@@ -422,7 +453,7 @@ export default function LoginPage() {
                 setTimeout(() => {
                     router.push('/dashboard');
                 }, 1000);
-                
+
             } else {
                 setError('Password salah');
                 console.log('Password tidak cocok');
@@ -444,7 +475,7 @@ export default function LoginPage() {
 
         try {
             console.log('=== REGISTER START ===');
-            
+
             if (!registerData.username.trim() || !registerData.password.trim() || !registerData.nama.trim() || !registerData.asal.trim()) {
                 setError('Username, password, nama, dan asal daerah wajib diisi');
                 setLoading(false);
@@ -572,7 +603,7 @@ export default function LoginPage() {
                         Selamat Datang di Absensi MUMI
                     </h2>
                     <p className="text-center text-gray-600 mb-6">Silakan login atau daftar untuk melanjutkan</p>
-                    
+
                     {viewMode === 'login' && (
                         <form onSubmit={handleLogin} className="space-y-6">
                             <div>
@@ -729,8 +760,8 @@ export default function LoginPage() {
                                     className="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all duration-200"
                                     placeholder={
                                         registerData.status === 'pelajar' ? 'Nama sekolah (SMA/SMK)' :
-                                        registerData.status === 'kuliah' ? 'Nama universitas & jurusan' :
-                                        'Nama perusahaan/tempat kerja'
+                                            registerData.status === 'kuliah' ? 'Nama universitas & jurusan' :
+                                                'Nama perusahaan/tempat kerja'
                                     }
                                     value={registerData.keterangan}
                                     onChange={handleRegisterChange}
@@ -751,9 +782,9 @@ export default function LoginPage() {
                                     {previewFoto && (
                                         <div className="flex justify-center">
                                             <div className="relative">
-                                                <img 
-                                                    src={previewFoto} 
-                                                    alt="Preview" 
+                                                <img
+                                                    src={previewFoto}
+                                                    alt="Preview"
                                                     className="w-32 h-32 rounded-full object-cover border-4 border-blue-500 shadow-lg"
                                                 />
                                                 <button
@@ -770,15 +801,14 @@ export default function LoginPage() {
                                             </div>
                                         </div>
                                     )}
-                                    
+
                                     <div className="flex flex-col items-center">
-                                        <label 
+                                        <label
                                             htmlFor="foto-profil-upload"
-                                            className={`cursor-pointer flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl transition-all duration-200 ${
-                                                previewFoto 
-                                                    ? 'border-green-300 bg-green-50 hover:bg-green-100' 
-                                                    : 'border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-blue-400'
-                                            } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            className={`cursor-pointer flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl transition-all duration-200 ${previewFoto
+                                                ? 'border-green-300 bg-green-50 hover:bg-green-100'
+                                                : 'border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-blue-400'
+                                                } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
                                             <div className="flex flex-col items-center space-y-2">
                                                 <span className="text-4xl">
@@ -803,8 +833,8 @@ export default function LoginPage() {
                                     </div>
 
                                     <p className="text-xs text-center text-gray-600">
-                                        {fotoProfil 
-                                            ? '✓ Foto siap diupload' 
+                                        {fotoProfil
+                                            ? '✓ Foto siap diupload'
                                             : '⚠️ Foto profil wajib diupload sebelum mendaftar'
                                         }
                                     </p>
