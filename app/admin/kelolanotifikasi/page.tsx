@@ -19,8 +19,8 @@ export default function KelolaNotifikasiPage() {
   // Default icon for notification (same as login logo)
   const defaultIcon = "/logo-ldii.png";
 
-  const fetchDevices = async () => {
-    setLoadingDevices(true);
+  const fetchDevices = async (showLoading = true) => {
+    if (showLoading) setLoadingDevices(true);
     try {
       const res = await fetch('/api/push-subscriptions');
       const data = await res.json();
@@ -74,7 +74,7 @@ export default function KelolaNotifikasiPage() {
 
   useEffect(() => {
     // Subscribe ke event INSERT pada tabel jadwal_guru
-    const channel = supabase
+    const jadwalChannel = supabase
       .channel('jadwal_guru-insert')
       .on(
         'postgres_changes',
@@ -86,8 +86,22 @@ export default function KelolaNotifikasiPage() {
       )
       .subscribe();
 
+    // Subscribe ke perubahan pada tabel push_subscriptions (auto-refresh)
+    const pushChannel = supabase
+      .channel('push_subscriptions-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'push_subscriptions' },
+        () => {
+          // Refresh device list tanpa loading indicator
+          fetchDevices(false);
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(jadwalChannel);
+      supabase.removeChannel(pushChannel);
     };
   }, []);
 
@@ -110,12 +124,10 @@ export default function KelolaNotifikasiPage() {
               </div>
               <div className="text-4xl">📱</div>
             </div>
-            <button
-              onClick={fetchDevices}
-              className="mt-2 text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-all"
-            >
-              🔄 Refresh
-            </button>
+            <p className="mt-2 text-xs opacity-70 flex items-center gap-1">
+              <span className="inline-block w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+              Auto-refresh aktif
+            </p>
           </div>
         </div>
 
