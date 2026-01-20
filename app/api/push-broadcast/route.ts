@@ -98,6 +98,14 @@ export async function POST(request: Request) {
                 console.log(`✅ Sent to ${sub.username || 'unknown'} (${sub.device_info?.substring(0, 30) || 'unknown device'})`);
                 results.success++;
             } catch (err: any) {
+                // Log detailed error info for debugging
+                console.error(`❌ Push error for ${sub.username}:`, {
+                    statusCode: err.statusCode,
+                    message: err.message,
+                    body: err.body,
+                    endpoint: sub.endpoint?.substring(0, 50) + '...'
+                });
+
                 if (err.statusCode === 410 || err.statusCode === 404) {
                     // Subscription expired/invalid, hapus dari DB
                     console.log(`🗑️ Removing expired subscription for ${sub.username}: ${err.statusCode}`);
@@ -107,10 +115,17 @@ export async function POST(request: Request) {
                     console.error(`⏳ Rate limited for ${sub.username}`);
                     results.failed++;
                     results.errors.push(`Rate limited for ${sub.username}`);
+                } else if (err.statusCode === 401 || err.statusCode === 403) {
+                    // VAPID key issues or authorization problems
+                    console.error(`🔐 Auth error for ${sub.username}: ${err.statusCode} - Mungkin masalah VAPID key atau endpoint tidak valid`);
+                    // Hapus subscription yang bermasalah
+                    await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+                    results.failed++;
+                    results.errors.push(`${sub.username}: Auth error ${err.statusCode}`);
                 } else {
                     console.error(`❌ Error sending to ${sub.username}:`, err.message || err);
                     results.failed++;
-                    results.errors.push(`${sub.username}: ${err.message || 'Unknown error'}`);
+                    results.errors.push(`${sub.username}: ${err.message || 'Unknown error'} (${err.statusCode || 'no code'})`);
                 }
             }
         });

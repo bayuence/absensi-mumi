@@ -33,6 +33,7 @@ export default function ProfilPage() {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [notifStatus, setNotifStatus] = useState<'granted' | 'denied' | 'default' | 'unsupported'>('default');
 
   useEffect(() => {
     const username = localStorage.getItem('loggedUser');
@@ -42,6 +43,13 @@ export default function ProfilPage() {
     }
 
     fetchUserProfile(username);
+
+    // Check notification status
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotifStatus(Notification.permission as any);
+    } else {
+      setNotifStatus('unsupported');
+    }
   }, [router]);
 
   const fetchUserProfile = async (username: string) => {
@@ -61,7 +69,7 @@ export default function ProfilPage() {
             .select('username, nama, asal, status, keterangan')
             .eq('username', username)
             .single();
-          
+
           if (retryError) throw retryError;
           setUserProfile(dataWithoutPhoto);
         } else {
@@ -72,9 +80,9 @@ export default function ProfilPage() {
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
-      setMessage({ 
-        type: 'error', 
-        text: 'Gagal memuat profil. Pastikan Anda sudah login.' 
+      setMessage({
+        type: 'error',
+        text: 'Gagal memuat profil. Pastikan Anda sudah login.'
       });
     } finally {
       setLoading(false);
@@ -166,21 +174,21 @@ export default function ProfilPage() {
 
   const handleConfirmUpload = async () => {
     if (!selectedFile || !previewImage) return;
-    
+
     // Crop image sesuai dengan preview
     const croppedBlob = await cropImage();
     if (!croppedBlob) return;
-    
+
     // Convert blob to file
     const croppedFile = new File([croppedBlob], selectedFile.name, { type: selectedFile.type });
-    
+
     // Upload berdasarkan tipe
     if (uploadType === 'profile') {
       await uploadPhoto(croppedFile);
     } else {
       await uploadCover(croppedFile);
     }
-    
+
     setShowModal(false);
     setPreviewImage(null);
     setSelectedFile(null);
@@ -212,12 +220,12 @@ export default function ProfilPage() {
           outputWidth = 1200; // High res cover
           outputHeight = 360; // Landscape ratio (roughly 3.33:1)
         }
-        
+
         canvas = document.createElement('canvas');
         canvas.width = outputWidth;
         canvas.height = outputHeight;
         const ctx = canvas.getContext('2d');
-        
+
         if (!ctx) {
           resolve(null);
           return;
@@ -244,7 +252,7 @@ export default function ProfilPage() {
         // Hitung ukuran gambar di preview
         let imgWidth: number;
         let imgHeight: number;
-        
+
         if (uploadType === 'profile') {
           // Profile: fit by height
           imgHeight = previewHeight;
@@ -267,7 +275,7 @@ export default function ProfilPage() {
 
         // Draw image
         ctx.drawImage(img, 0, 0, imgWidth * ratio, imgHeight * ratio);
-        
+
         ctx.restore();
 
         // Convert to blob
@@ -338,9 +346,9 @@ export default function ProfilPage() {
       setMessage({ type: 'success', text: 'Foto profil berhasil diupload!' });
     } catch (error: any) {
       console.error('Error uploading photo:', error);
-      setMessage({ 
-        type: 'error', 
-        text: error.message || 'Gagal mengupload foto' 
+      setMessage({
+        type: 'error',
+        text: error.message || 'Gagal mengupload foto'
       });
     } finally {
       setUploading(false);
@@ -442,9 +450,9 @@ export default function ProfilPage() {
       setMessage({ type: 'success', text: 'Foto sampul berhasil diupload!' });
     } catch (error: any) {
       console.error('Error uploading cover:', error);
-      setMessage({ 
-        type: 'error', 
-        text: error.message || 'Gagal mengupload foto sampul' 
+      setMessage({
+        type: 'error',
+        text: error.message || 'Gagal mengupload foto sampul'
       });
     } finally {
       setUploading(false);
@@ -487,6 +495,73 @@ export default function ProfilPage() {
     }
   };
 
+  // Handle enable notification
+  const handleEnableNotification = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      alert('Browser Anda tidak mendukung notifikasi');
+      return;
+    }
+
+    try {
+      if (Notification.permission === 'denied') {
+        alert('Notifikasi diblokir oleh browser. Silakan buka pengaturan browser:\n\n1. Klik icon 🔒 di address bar\n2. Cari "Notifications"\n3. Ubah ke "Allow"\n4. Refresh halaman');
+        return;
+      }
+
+      // Subscribe to push
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        const reg = await navigator.serviceWorker.ready;
+        let subObj = await reg.pushManager.getSubscription();
+
+        if (!subObj) {
+          const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+          if (vapidPublicKey) {
+            const convertedVapidKey = (() => {
+              const padding = '='.repeat((4 - vapidPublicKey.length % 4) % 4);
+              const base64 = (vapidPublicKey + padding).replace(/-/g, '+').replace(/_/g, '/');
+              const rawData = window.atob(base64);
+              const outputArray = new Uint8Array(rawData.length);
+              for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+              }
+              return outputArray;
+            })();
+            subObj = await reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: convertedVapidKey
+            });
+          }
+        }
+
+        if (subObj && subObj.endpoint) {
+          const username = localStorage.getItem('loggedUser');
+          const deviceInfo = navigator.userAgent;
+          const keys = subObj.toJSON().keys;
+          await fetch('/api/push-subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              endpoint: subObj.endpoint,
+              keys,
+              username,
+              device_info: deviceInfo
+            })
+          });
+          setNotifStatus('granted');
+          setMessage({ type: 'success', text: 'Notifikasi berhasil diaktifkan!' });
+        }
+      }
+    } catch (e: any) {
+      console.error('Error enabling notification:', e);
+      if (e.name === 'NotAllowedError') {
+        setNotifStatus('denied');
+        alert('Anda menolak izin notifikasi. Untuk mengaktifkan, buka pengaturan browser.');
+      } else {
+        setMessage({ type: 'error', text: 'Gagal mengaktifkan notifikasi' });
+      }
+    }
+  };
+
   if (loading) {
     return (
       <>
@@ -516,11 +591,10 @@ export default function ProfilPage() {
 
           {/* Message Alert */}
           {message && (
-            <div className={`mb-6 p-4 rounded-xl border ${
-              message.type === 'success' 
-                ? 'bg-green-50 border-green-200 text-green-800' 
+            <div className={`mb-6 p-4 rounded-xl border ${message.type === 'success'
+                ? 'bg-green-50 border-green-200 text-green-800'
                 : 'bg-red-50 border-red-200 text-red-800'
-            } flex items-center space-x-2`}>
+              } flex items-center space-x-2`}>
               <span>{message.type === 'success' ? '✅' : '❌'}</span>
               <span>{message.text}</span>
             </div>
@@ -533,15 +607,15 @@ export default function ProfilPage() {
                 {/* Cover Photo */}
                 <div className="h-48 bg-gradient-to-r from-blue-600 to-purple-600 relative overflow-hidden">
                   {userProfile.foto_sampul ? (
-                    <img 
-                      src={userProfile.foto_sampul} 
+                    <img
+                      src={userProfile.foto_sampul}
                       alt="Cover"
                       className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-r from-blue-600 to-purple-600"></div>
                   )}
-                  
+
                   {/* Cover Photo Action Buttons */}
                   <div className="absolute top-4 right-4 flex space-x-2">
                     {/* Upload Cover Button */}
@@ -575,8 +649,8 @@ export default function ProfilPage() {
                     {/* Profile Photo */}
                     <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-xl overflow-hidden border-4 border-white">
                       {userProfile.foto_profil ? (
-                        <img 
-                          src={userProfile.foto_profil} 
+                        <img
+                          src={userProfile.foto_profil}
                           alt={userProfile.nama}
                           className="w-full h-full object-cover"
                         />
@@ -587,50 +661,50 @@ export default function ProfilPage() {
                       )}
                     </div>
 
-                  {/* Photo Action Buttons */}
-                  <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                    {/* Upload Button */}
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading}
-                      className="bg-white hover:bg-gray-100 text-blue-600 p-2 rounded-full shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Upload foto"
-                    >
-                      {uploading ? (
-                        <div className="animate-spin w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                      ) : (
-                        <span className="text-xl">📷</span>
-                      )}
-                    </button>
-
-                    {/* Delete Button */}
-                    {userProfile.foto_profil && (
+                    {/* Photo Action Buttons */}
+                    <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-2">
+                      {/* Upload Button */}
                       <button
-                        onClick={handleDeletePhoto}
+                        onClick={() => fileInputRef.current?.click()}
                         disabled={uploading}
-                        className="bg-white hover:bg-red-50 text-red-600 p-2 rounded-full shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Hapus foto"
+                        className="bg-white hover:bg-gray-100 text-blue-600 p-2 rounded-full shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Upload foto"
                       >
-                        <span className="text-xl">🗑️</span>
+                        {uploading ? (
+                          <div className="animate-spin w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                        ) : (
+                          <span className="text-xl">📷</span>
+                        )}
                       </button>
-                    )}
-                  </div>
 
-                  {/* Hidden File Inputs */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileSelect(e, 'profile')}
-                    className="hidden"
-                  />
-                  <input
-                    ref={coverInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileSelect(e, 'cover')}
-                    className="hidden"
-                  />
+                      {/* Delete Button */}
+                      {userProfile.foto_profil && (
+                        <button
+                          onClick={handleDeletePhoto}
+                          disabled={uploading}
+                          className="bg-white hover:bg-red-50 text-red-600 p-2 rounded-full shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Hapus foto"
+                        >
+                          <span className="text-xl">🗑️</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Hidden File Inputs */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileSelect(e, 'profile')}
+                      className="hidden"
+                    />
+                    <input
+                      ref={coverInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileSelect(e, 'cover')}
+                      className="hidden"
+                    />
                   </div>
                 </div>
               </div>
@@ -709,6 +783,36 @@ export default function ProfilPage() {
 
               {/* Footer Info */}
               <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 border-t border-gray-100">
+                {/* Notification Status */}
+                <div className="mb-4 p-4 rounded-xl border border-gray-200 bg-white">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-2xl">🔔</span>
+                      <div>
+                        <p className="font-semibold text-gray-800">Notifikasi Push</p>
+                        <p className="text-sm text-gray-500">
+                          {notifStatus === 'granted' && 'Aktif - Anda akan menerima notifikasi'}
+                          {notifStatus === 'denied' && 'Diblokir - Buka pengaturan browser untuk mengaktifkan'}
+                          {notifStatus === 'default' && 'Belum diaktifkan'}
+                          {notifStatus === 'unsupported' && 'Browser tidak mendukung notifikasi'}
+                        </p>
+                      </div>
+                    </div>
+                    {notifStatus === 'granted' ? (
+                      <span className="text-green-500 text-2xl">✅</span>
+                    ) : notifStatus === 'denied' ? (
+                      <span className="text-red-500 text-2xl">❌</span>
+                    ) : notifStatus !== 'unsupported' ? (
+                      <button
+                        onClick={handleEnableNotification}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-all"
+                      >
+                        Aktifkan
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
                   <span>ℹ️</span>
                   <p>Untuk mengubah data profil, silakan hubungi admin</p>
@@ -737,12 +841,11 @@ export default function ProfilPage() {
 
               {/* Preview Image with Touch Controls */}
               <div className="flex flex-col items-center space-y-4">
-                <div 
-                  className={`${
-                    uploadType === 'profile' 
-                      ? 'w-72 h-72 rounded-full' 
+                <div
+                  className={`${uploadType === 'profile'
+                      ? 'w-72 h-72 rounded-full'
                       : 'w-full h-48'
-                  } overflow-hidden border-4 border-blue-500 shadow-xl relative bg-gray-100 touch-none`}
+                    } overflow-hidden border-4 border-blue-500 shadow-xl relative bg-gray-100 touch-none`}
                   onMouseDown={handleMouseDown}
                   onMouseMove={handleMouseMove}
                   onMouseUp={handleMouseUp}
@@ -762,9 +865,9 @@ export default function ProfilPage() {
                       justifyContent: 'center'
                     }}
                   >
-                    <img 
-                      src={previewImage} 
-                      alt="Preview" 
+                    <img
+                      src={previewImage}
+                      alt="Preview"
                       className="pointer-events-none select-none"
                       style={{
                         transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,

@@ -11,7 +11,6 @@ import "moment/locale/id";
 
 export default function DashboardPage() {
     const [user, setUser] = useState<any>(null);
-    const [showNotifPrompt, setShowNotifPrompt] = useState(false);
     const [todaySchedule, setTodaySchedule] = useState<any[]>([]);
     const [nextSchedule, setNextSchedule] = useState<any[]>([]);
     const [pengumuman, setPengumuman] = useState<any>(null);
@@ -23,68 +22,59 @@ export default function DashboardPage() {
 
     const today = moment().format("YYYY-MM-DD");
 
-    // Handler untuk meminta izin notifikasi (defined before useEffect to be used inside)
-    const handleRequestNotif = async () => {
-        if (typeof window !== 'undefined' && 'Notification' in window) {
+    // Handler untuk subscribe push notification (langsung pakai browser native prompt)
+    const subscribeNotification = async () => {
+        if (typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window) {
             try {
-                const permission = await Notification.requestPermission();
-                localStorage.setItem('lastNotifPrompt', Date.now().toString());
+                const username = localStorage.getItem('loggedUser');
+                if (!username) return;
 
-                if (permission === 'granted') {
-                    // Jika permission granted, lakukan subscribe push
-                    const username = localStorage.getItem('loggedUser');
-                    if (username) {
-                        try {
-                            if ('serviceWorker' in navigator && 'PushManager' in window) {
-                                const reg = await navigator.serviceWorker.ready;
-                                let subObj = await reg.pushManager.getSubscription();
+                // Cek apakah sudah pernah subscribe
+                const reg = await navigator.serviceWorker.ready;
+                let subObj = await reg.pushManager.getSubscription();
 
-                                if (!subObj) {
-                                    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-                                    if (vapidPublicKey) {
-                                        const convertedVapidKey = (() => {
-                                            const padding = '='.repeat((4 - vapidPublicKey.length % 4) % 4);
-                                            const base64 = (vapidPublicKey + padding).replace(/-/g, '+').replace(/_/g, '/');
-                                            const rawData = window.atob(base64);
-                                            const outputArray = new Uint8Array(rawData.length);
-                                            for (let i = 0; i < rawData.length; ++i) {
-                                                outputArray[i] = rawData.charCodeAt(i);
-                                            }
-                                            return outputArray;
-                                        })();
-                                        subObj = await reg.pushManager.subscribe({
-                                            userVisibleOnly: true,
-                                            applicationServerKey: convertedVapidKey
-                                        });
-                                        localStorage.setItem('pushSubscription', JSON.stringify(subObj));
-                                    }
-                                }
-
-                                // Kirim ke server (Sync Subscription)
-                                if (subObj && subObj.endpoint) {
-                                    const deviceInfo = navigator.userAgent;
-                                    const keys = subObj.toJSON().keys;
-                                    await fetch('/api/push-subscribe', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            endpoint: subObj.endpoint,
-                                            keys,
-                                            username,
-                                            device_info: deviceInfo
-                                        })
-                                    });
-                                }
+                // Jika belum ada subscription, browser akan otomatis minta izin
+                if (!subObj) {
+                    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+                    if (vapidPublicKey) {
+                        const convertedVapidKey = (() => {
+                            const padding = '='.repeat((4 - vapidPublicKey.length % 4) % 4);
+                            const base64 = (vapidPublicKey + padding).replace(/-/g, '+').replace(/_/g, '/');
+                            const rawData = window.atob(base64);
+                            const outputArray = new Uint8Array(rawData.length);
+                            for (let i = 0; i < rawData.length; ++i) {
+                                outputArray[i] = rawData.charCodeAt(i);
                             }
-                        } catch (e) {
-                            console.log('Error subscribe push di dashboard:', e);
-                        }
+                            return outputArray;
+                        })();
+                        // Ini akan memunculkan prompt native dari browser
+                        subObj = await reg.pushManager.subscribe({
+                            userVisibleOnly: true,
+                            applicationServerKey: convertedVapidKey
+                        });
+                        localStorage.setItem('pushSubscription', JSON.stringify(subObj));
                     }
                 }
+
+                // Kirim ke server
+                if (subObj && subObj.endpoint) {
+                    const deviceInfo = navigator.userAgent;
+                    const keys = subObj.toJSON().keys;
+                    await fetch('/api/push-subscribe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            endpoint: subObj.endpoint,
+                            keys,
+                            username,
+                            device_info: deviceInfo
+                        })
+                    });
+                    console.log('✅ Device berhasil didaftarkan untuk notifikasi');
+                }
             } catch (e) {
-                // ignore localStorage error
+                console.log('Push notification setup:', e);
             }
-            setShowNotifPrompt(false);
         }
     };
 
@@ -180,33 +170,13 @@ export default function DashboardPage() {
 
         fetchData();
 
+        // Auto subscribe notification (hanya muncul prompt native dari browser)
+        // Delay sedikit agar user sempat melihat dashboard dulu
+        const notifTimeout = setTimeout(() => {
+            subscribeNotification();
+        }, 2000);
 
-        // === PROMPT NOTIFIKASI & AUTO SYNC ===
-        if (typeof window !== 'undefined') {
-            try {
-                const permission = typeof Notification !== 'undefined' ? Notification.permission : null;
-
-                // AUTO SYNC: Jika permission sudah granted, pastikan tersimpan di server
-                if (permission === 'granted') {
-                    handleRequestNotif();
-                }
-                // Jika belum granted, cek apakah perlu tampilkan prompt
-                else if (permission !== 'denied') {
-                    let lastPrompt = null;
-                    try {
-                        lastPrompt = localStorage.getItem('lastNotifPrompt');
-                    } catch (e) {
-                        lastPrompt = null;
-                    }
-                    const now = Date.now();
-                    if (!lastPrompt || now - Number(lastPrompt) > 24 * 60 * 60 * 1000) {
-                        setShowNotifPrompt(true);
-                    }
-                }
-            } catch (err) {
-                console.error('Gagal setup notifikasi:', err);
-            }
-        }
+        return () => clearTimeout(notifTimeout);
     }, []);
 
 
@@ -218,32 +188,6 @@ export default function DashboardPage() {
     return (
         <>
             <Navbar />
-            {/* Prompt Notifikasi */}
-            {showNotifPrompt && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center">
-                    {/* Overlay */}
-                    <div className="absolute inset-0 bg-black bg-opacity-40"></div>
-                    {/* Popup */}
-                    <div className="relative bg-white rounded-2xl shadow-xl border border-gray-100 p-6 w-full max-w-xs mx-auto flex flex-col items-center gap-3 z-10">
-                        <button
-                            onClick={() => setShowNotifPrompt(false)}
-                            className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded-full text-gray-600 text-lg font-bold transition-all"
-                            aria-label="Tutup Notifikasi"
-                        >
-                            ×
-                        </button>
-                        <span className="text-3xl mb-2">🔔</span>
-                        <p className="text-center text-base font-semibold text-slate-700">Aktifkan notifikasi agar tidak ketinggalan info penting!</p>
-                        <p className="text-xs text-red-500 text-center">Jika Anda sudah install aplikasi sebelumnya, silakan klik ulang tombol ini agar notifikasi aktif dan data Anda tersimpan di server.</p>
-                        <button
-                            onClick={handleRequestNotif}
-                            className="mt-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-medium transition-all w-full"
-                        >
-                            Aktifkan Notifikasi
-                        </button>
-                    </div>
-                </div>
-            )}
             <main className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 px-4 py-6 sm:px-6 lg:px-8">
                 <div className="max-w-7xl mx-auto">
                     {/* Header Welcome */}

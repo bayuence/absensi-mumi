@@ -12,6 +12,7 @@ export default function Navbar() {
     const [currentPath, setCurrentPath] = useState("");
     const [userPhoto, setUserPhoto] = useState<string | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [notifStatus, setNotifStatus] = useState<'granted' | 'denied' | 'default' | 'unsupported'>('default');
 
     useEffect(() => {
         const user = localStorage.getItem("loggedUser");
@@ -23,6 +24,13 @@ export default function Navbar() {
 
         // Get current path for active link highlighting
         setCurrentPath(window.location.pathname);
+
+        // Check notification status
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+            setNotifStatus(Notification.permission as any);
+        } else {
+            setNotifStatus('unsupported');
+        }
 
         // Refetch user data when window gains focus (for admin status updates)
         const handleFocus = () => {
@@ -87,6 +95,68 @@ export default function Navbar() {
 
     const toggleMenu = () => {
         setIsMenuOpen(!isMenuOpen);
+    };
+
+    // Handle enable notification from navbar
+    const handleEnableNotif = async () => {
+        if (typeof window === 'undefined' || !('Notification' in window)) {
+            alert('Browser tidak mendukung notifikasi');
+            return;
+        }
+
+        if (Notification.permission === 'denied') {
+            alert('Notifikasi diblokir. Buka pengaturan browser:\n\n1. Klik icon 🔒 di address bar\n2. Notifications \u2192 Allow');
+            return;
+        }
+
+        try {
+            if ('serviceWorker' in navigator && 'PushManager' in window) {
+                const reg = await navigator.serviceWorker.ready;
+                let subObj = await reg.pushManager.getSubscription();
+
+                if (!subObj) {
+                    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+                    if (vapidPublicKey) {
+                        const convertedVapidKey = (() => {
+                            const padding = '='.repeat((4 - vapidPublicKey.length % 4) % 4);
+                            const base64 = (vapidPublicKey + padding).replace(/-/g, '+').replace(/_/g, '/');
+                            const rawData = window.atob(base64);
+                            const outputArray = new Uint8Array(rawData.length);
+                            for (let i = 0; i < rawData.length; ++i) {
+                                outputArray[i] = rawData.charCodeAt(i);
+                            }
+                            return outputArray;
+                        })();
+                        subObj = await reg.pushManager.subscribe({
+                            userVisibleOnly: true,
+                            applicationServerKey: convertedVapidKey
+                        });
+                    }
+                }
+
+                if (subObj && subObj.endpoint) {
+                    const user = localStorage.getItem('loggedUser');
+                    const deviceInfo = navigator.userAgent;
+                    const keys = subObj.toJSON().keys;
+                    await fetch('/api/push-subscribe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            endpoint: subObj.endpoint,
+                            keys,
+                            username: user,
+                            device_info: deviceInfo
+                        })
+                    });
+                    setNotifStatus('granted');
+                }
+            }
+        } catch (e: any) {
+            if (e.name === 'NotAllowedError') {
+                setNotifStatus('denied');
+            }
+            console.error('Error enabling notification:', e);
+        }
     };
 
     const navLinks = [
@@ -169,6 +239,23 @@ export default function Navbar() {
                                     <span className="text-gray-800 font-medium text-sm">{username}</span>
                                 </div>
                             </Link>
+
+                            {/* Notification Button */}
+                            <button
+                                onClick={handleEnableNotif}
+                                className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${notifStatus === 'granted'
+                                        ? 'bg-green-100 text-green-600'
+                                        : 'bg-gray-100 hover:bg-blue-100 text-gray-600 hover:text-blue-600'
+                                    }`}
+                                title={notifStatus === 'granted' ? 'Notifikasi aktif' : 'Aktifkan notifikasi'}
+                            >
+                                <span className="text-lg">🔔</span>
+                                {notifStatus === 'granted' ? (
+                                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></span>
+                                ) : notifStatus !== 'unsupported' && notifStatus !== 'denied' ? (
+                                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+                                ) : null}
+                            </button>
 
                             {/* Logout Button */}
                             <button

@@ -241,11 +241,11 @@ export default function KelolaNotifikasiPage() {
       >
         <div className="w-full flex flex-col gap-1">
           <label htmlFor="notif-title" className="text-xs text-slate-600 font-medium">Judul Notifikasi</label>
-          <input id="notif-title" name="title" type="text" required maxLength={60} placeholder="Contoh: Jadwal Baru!" className="rounded-lg border px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          <input suppressHydrationWarning id="notif-title" name="title" type="text" required maxLength={60} placeholder="Contoh: Jadwal Baru!" className="rounded-lg border px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-200" />
         </div>
         <div className="w-full flex flex-col gap-1">
           <label htmlFor="notif-body" className="text-xs text-slate-600 font-medium">Isi Pesan</label>
-          <textarea id="notif-body" name="body" required maxLength={200} placeholder="Isi pesan notifikasi..." className="rounded-lg border px-3 py-2 text-sm min-h-[48px] text-black focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          <textarea suppressHydrationWarning id="notif-body" name="body" required maxLength={200} placeholder="Isi pesan notifikasi..." className="rounded-lg border px-3 py-2 text-sm min-h-[48px] text-black focus:outline-none focus:ring-2 focus:ring-blue-200" />
         </div>
         {/* Icon notification is set automatically */}
         <input type="hidden" name="icon" value={defaultIcon} />
@@ -253,7 +253,7 @@ export default function KelolaNotifikasiPage() {
           <img src={defaultIcon} alt="Logo" className="w-8 h-8 rounded-lg border bg-white" />
           <span className="text-xs text-slate-500">Icon notifikasi otomatis</span>
         </div>
-        <button type="submit" className="mt-2 w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 rounded-lg text-base active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">Kirim Notifikasi</button>
+        <button suppressHydrationWarning type="submit" className="mt-2 w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 rounded-lg text-base active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">Kirim Notifikasi</button>
       </form>
     </div>
   );

@@ -1,7 +1,11 @@
-// Service Worker for Push Notification
-// Versi: 2.0 - Dengan dukungan lengkap untuk mobile
+// Service Worker for Push Notification & PWA Auto-Update
+// Versi otomatis berdasarkan timestamp build
 
-const CACHE_VERSION = 'v2';
+// PENTING: Jangan edit apapun di sini untuk update!
+// Cukup deploy ulang dan service worker akan otomatis update
+// karena Next.js/Vercel menghasilkan hash file yang berbeda setiap build
+
+const CACHE_NAME = 'mumi-app-cache';
 
 // Event: Push Notification Received
 self.addEventListener('push', function (event) {
@@ -15,7 +19,6 @@ self.addEventListener('push', function (event) {
     }
   } catch (e) {
     console.log('[Service Worker] Error parsing push data:', e);
-    // Fallback jika data bukan JSON
     data = {
       title: 'Notifikasi Baru',
       body: event.data ? event.data.text() : 'Ada notifikasi baru untuk Anda',
@@ -32,12 +35,11 @@ self.addEventListener('push', function (event) {
       url: data.url || '/',
       dateOfArrival: Date.now(),
     },
-    tag: data.tag || 'default-tag', // Mencegah duplikasi notifikasi
-    renotify: true, // Tetap bunyi meski tag sama
-    requireInteraction: false, // Auto dismiss di mobile
-    vibrate: [100, 50, 100, 50, 100], // Pola getaran untuk mobile
+    tag: data.tag || 'mumi-notification',
+    renotify: true,
+    requireInteraction: false,
+    vibrate: [100, 50, 100, 50, 100],
     actions: data.actions || [],
-    // Untuk Android/Mobile
     silent: false,
   };
 
@@ -65,15 +67,12 @@ self.addEventListener('notificationclick', function (event) {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(windowClients => {
-        // Cek apakah sudah ada tab yang terbuka
         for (let client of windowClients) {
-          // Jika sudah ada tab dengan URL yang sama, focus ke tab itu
           if (client.url.includes(self.registration.scope) && 'focus' in client) {
             client.navigate(urlToOpen);
             return client.focus();
           }
         }
-        // Jika tidak ada tab yang terbuka, buka tab baru
         if (clients.openWindow) {
           return clients.openWindow(urlToOpen);
         }
@@ -81,30 +80,48 @@ self.addEventListener('notificationclick', function (event) {
   );
 });
 
-// Event: Notification Close (untuk analytics jika diperlukan)
+// Event: Notification Close
 self.addEventListener('notificationclose', function (event) {
   console.log('[Service Worker] Notification closed:', event.notification.tag);
 });
 
-// Event: Service Worker Install
+// Event: Service Worker Install - LANGSUNG SKIP WAITING
 self.addEventListener('install', function (event) {
-  console.log('[Service Worker] Installing Service Worker...', CACHE_VERSION);
-  // Skip waiting agar langsung aktif
+  console.log('[Service Worker] Installing...');
+  // PENTING: Langsung aktifkan tanpa menunggu
   self.skipWaiting();
 });
 
-// Event: Service Worker Activate
+// Event: Service Worker Activate - LANGSUNG CLAIM SEMUA CLIENTS
 self.addEventListener('activate', function (event) {
-  console.log('[Service Worker] Activating Service Worker...', CACHE_VERSION);
-  // Claim semua clients agar langsung bisa handle push
+  console.log('[Service Worker] Activating...');
+
   event.waitUntil(
-    clients.claim().then(() => {
-      console.log('[Service Worker] Claimed all clients');
+    Promise.all([
+      // Ambil alih semua tab/window yang terbuka
+      clients.claim(),
+      // Hapus cache lama
+      caches.keys().then(cacheNames => {
+        return Promise.all(
+          cacheNames.map(cacheName => {
+            console.log('[Service Worker] Deleting cache:', cacheName);
+            return caches.delete(cacheName);
+          })
+        );
+      })
+    ]).then(() => {
+      console.log('[Service Worker] Activated and claimed all clients');
+      // Beritahu semua clients untuk reload
+      return clients.matchAll({ type: 'window' }).then(windowClients => {
+        windowClients.forEach(client => {
+          client.postMessage({ type: 'SW_ACTIVATED' });
+        });
+      });
     })
   );
 });
 
-// Event: Push Subscription Change (untuk handle renewal)
+// Event: Push Subscription Change
 self.addEventListener('pushsubscriptionchange', function (event) {
   console.log('[Service Worker] Push subscription changed');
 
@@ -113,7 +130,6 @@ self.addEventListener('pushsubscriptionchange', function (event) {
       userVisibleOnly: true,
     }).then(function (subscription) {
       console.log('[Service Worker] New subscription:', subscription);
-      // Kirim subscription baru ke server
       return fetch('/api/push-subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -128,12 +144,15 @@ self.addEventListener('pushsubscriptionchange', function (event) {
   );
 });
 
-// Fetch event - minimal handler untuk PWA
-self.addEventListener('fetch', function (event) {
-  // Hanya handle request ke origin yang sama
-  if (event.request.url.startsWith(self.location.origin)) {
-    // Tidak melakukan caching, langsung ke network
-    // Ini untuk memastikan data selalu fresh
-    return;
+// Message handler
+self.addEventListener('message', function (event) {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
   }
+});
+
+// Fetch event - bypass cache untuk selalu fresh
+self.addEventListener('fetch', function (event) {
+  // Jangan cache apapun, selalu ambil dari network
+  return;
 });
