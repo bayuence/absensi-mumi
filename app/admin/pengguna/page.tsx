@@ -24,6 +24,13 @@ export default function PenggunaPage() {
   });
   const [saving, setSaving] = useState(false);
 
+  // State untuk fitur auto-cleanup
+  const [inactiveMonths, setInactiveMonths] = useState(2);
+  const [inactiveUsers, setInactiveUsers] = useState<User[]>([]);
+  const [loadingInactive, setLoadingInactive] = useState(false);
+  const [showInactiveSection, setShowInactiveSection] = useState(false);
+  const [deletingInactive, setDeletingInactive] = useState(false);
+
   useEffect(() => {
     const checkAdminAccess = async () => {
       const currentUser = localStorage.getItem("user");
@@ -193,6 +200,94 @@ export default function PenggunaPage() {
     setSaving(false);
   };
 
+  // Cari user tidak aktif (tidak pernah hadir/izin dalam X bulan)
+  const findInactiveUsers = async () => {
+    setLoadingInactive(true);
+    setShowInactiveSection(true);
+
+    try {
+      // Hitung tanggal batas
+      const cutoffDate = new Date();
+      cutoffDate.setMonth(cutoffDate.getMonth() - inactiveMonths);
+      const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+
+      // Ambil semua absensi dengan status HADIR atau IZIN dalam periode tersebut
+      // User dianggap aktif jika minimal 1x hadir atau izin
+      const { data: recentAbsensi, error: absensiError } = await supabase
+        .from('absensi')
+        .select('username')
+        .gte('tanggal', cutoffDateStr)
+        .in('status', ['HADIR', 'IZIN']); // Hanya hitung yang hadir atau izin
+
+      if (absensiError) throw absensiError;
+
+      // Dapat username yang pernah hadir/izin (aktif)
+      const activeUsernames = new Set(recentAbsensi?.map(p => p.username) || []);
+
+      // Filter user yang TIDAK PERNAH hadir/izin dalam periode
+      // Artinya tidak ada satu pun record HADIR atau IZIN
+      const inactive = users.filter(user =>
+        !activeUsernames.has(user.username) && !user.is_admin
+      );
+
+      setInactiveUsers(inactive);
+    } catch (error: any) {
+      console.error('Error finding inactive users:', error);
+      alert('Gagal mencari user tidak aktif: ' + error.message);
+    }
+
+    setLoadingInactive(false);
+  };
+
+  // Hapus satu user tidak aktif
+  const deleteInactiveUser = async (username: string) => {
+    if (!confirm(`Yakin hapus user ${username}? Data presensi juga akan terhapus!`)) return;
+
+    setDeleting(username);
+
+    try {
+      await supabase.from('absensi').delete().eq('username', username);
+      await supabase.from('push_subscriptions').delete().eq('username', username);
+      await supabase.from('users').delete().eq('username', username);
+
+      setInactiveUsers(prev => prev.filter(u => u.username !== username));
+      fetchUsers();
+      alert('User berhasil dihapus!');
+    } catch (error: any) {
+      alert('Gagal menghapus: ' + error.message);
+    }
+
+    setDeleting(null);
+  };
+
+  // Hapus semua user tidak aktif
+  const deleteAllInactiveUsers = async () => {
+    if (inactiveUsers.length === 0) {
+      alert('Tidak ada user tidak aktif untuk dihapus');
+      return;
+    }
+
+    if (!confirm(`Yakin hapus ${inactiveUsers.length} user tidak aktif?\n\nSemua data absensi mereka juga akan terhapus!\n\nTINDAKAN INI TIDAK DAPAT DIBATALKAN!`)) return;
+
+    setDeletingInactive(true);
+
+    try {
+      for (const user of inactiveUsers) {
+        await supabase.from('absensi').delete().eq('username', user.username);
+        await supabase.from('push_subscriptions').delete().eq('username', user.username);
+        await supabase.from('users').delete().eq('username', user.username);
+      }
+
+      alert(`${inactiveUsers.length} user berhasil dihapus!`);
+      setInactiveUsers([]);
+      fetchUsers();
+    } catch (error: any) {
+      alert('Gagal menghapus: ' + error.message);
+    }
+
+    setDeletingInactive(false);
+  };
+
   // Filter users
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -237,6 +332,126 @@ export default function PenggunaPage() {
                   <p className="text-xs sm:text-sm text-slate-600 font-medium">Total Pengguna</p>
                   <p className="text-xl sm:text-2xl font-bold text-slate-800">{users.length}</p>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Atur User Tidak Aktif */}
+          <div className="mb-6">
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/50 p-4 sm:p-6">
+              <div className="flex flex-col gap-4">
+                {/* Header */}
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-red-400 to-rose-600 rounded-xl flex items-center justify-center">
+                    <span className="text-2xl">🧹</span>
+                  </div>
+                  <div>
+                    <p className="text-sm sm:text-base font-bold text-slate-800">Atur User Tidak Aktif</p>
+                    <p className="text-xs text-slate-500">Hapus otomatis user yang tidak pernah hadir</p>
+                  </div>
+                </div>
+
+                {/* Settings */}
+                <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-3 rounded-lg">
+                  <label className="text-sm text-slate-700">Tidak aktif selama:</label>
+                  <select
+                    value={inactiveMonths}
+                    onChange={(e) => setInactiveMonths(Number(e.target.value))}
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 bg-white focus:ring-2 focus:ring-red-200 focus:border-red-400"
+                  >
+                    <option value={1}>1 bulan</option>
+                    <option value={2}>2 bulan</option>
+                    <option value={3}>3 bulan</option>
+                    <option value={6}>6 bulan</option>
+                    <option value={12}>12 bulan</option>
+                  </select>
+                  <button
+                    onClick={findInactiveUsers}
+                    disabled={loadingInactive}
+                    className="px-4 py-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {loadingInactive ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Mencari...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>🔍</span>
+                        <span>Cari User Tidak Aktif</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Hasil */}
+                {showInactiveSection && (
+                  <div className="border-t border-slate-200 pt-4">
+                    {loadingInactive ? (
+                      <div className="text-center py-4">
+                        <div className="w-8 h-8 border-3 border-red-200 border-t-red-600 rounded-full animate-spin mx-auto"></div>
+                        <p className="text-sm text-slate-500 mt-2">Mencari user tidak aktif...</p>
+                      </div>
+                    ) : inactiveUsers.length === 0 ? (
+                      <div className="text-center py-4 bg-green-50 rounded-lg">
+                        <span className="text-3xl">✅</span>
+                        <p className="text-green-700 font-medium mt-2">Tidak ada user tidak aktif</p>
+                        <p className="text-green-600 text-sm">Semua user aktif dalam {inactiveMonths} bulan terakhir</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Summary */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 bg-red-50 p-3 rounded-lg">
+                          <div>
+                            <p className="text-red-700 font-semibold">Ditemukan {inactiveUsers.length} user tidak aktif</p>
+                            <p className="text-red-600 text-xs">User ini tidak pernah hadir/izin dalam {inactiveMonths} bulan terakhir</p>
+                          </div>
+                          <button
+                            onClick={deleteAllInactiveUsers}
+                            disabled={deletingInactive}
+                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 flex items-center gap-2"
+                          >
+                            {deletingInactive ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                <span>Menghapus...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>🗑️</span>
+                                <span>Hapus Semua ({inactiveUsers.length})</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* List */}
+                        <div className="max-h-60 overflow-y-auto space-y-2">
+                          {inactiveUsers.map((user) => (
+                            <div key={user.username} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-slate-400 to-slate-500 rounded-full flex items-center justify-center text-white font-bold">
+                                  {user.nama.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="font-medium text-slate-800 text-sm">{user.nama}</p>
+                                  <p className="text-xs text-slate-500">@{user.username} • {user.asal}</p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => deleteInactiveUser(user.username)}
+                                disabled={deleting === user.username}
+                                className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
+                              >
+                                {deleting === user.username ? '...' : '🗑️ Hapus'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
